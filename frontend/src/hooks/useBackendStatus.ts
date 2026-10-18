@@ -23,6 +23,8 @@ export function useBackendStatus(): UseBackendStatusReturn {
   const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef<boolean>(true);
 
+  const performCheckRef = useRef<(retry: number) => Promise<void>>(async () => {});
+
   const performCheck = useCallback(async (currentRetry: number = 0) => {
     if (!isMountedRef.current) return;
     setStatus(currentRetry === 0 ? 'checking' : 'waking');
@@ -43,7 +45,7 @@ export function useBackendStatus(): UseBackendStatusReturn {
       } else {
         throw new Error('Models still initializing on server.');
       }
-    } catch (err: any) {
+    } catch {
       clearTimeout(timeoutId);
       if (!isMountedRef.current) return;
 
@@ -55,7 +57,7 @@ export function useBackendStatus(): UseBackendStatusReturn {
         // Exponential backoff: 3s, 5s, 8s, 12s, 15s
         const backoffMs = Math.min(3000 * Math.pow(1.4, nextRetry - 1), 15000);
         retryTimerRef.current = setTimeout(() => {
-          performCheck(nextRetry);
+          performCheckRef.current(nextRetry);
         }, backoffMs);
       } else {
         setStatus('offline');
@@ -67,6 +69,10 @@ export function useBackendStatus(): UseBackendStatusReturn {
     }
   }, []);
 
+  useEffect(() => {
+    performCheckRef.current = performCheck;
+  }, [performCheck]);
+
   const checkServer = useCallback(() => {
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     performCheck(0);
@@ -74,13 +80,16 @@ export function useBackendStatus(): UseBackendStatusReturn {
 
   useEffect(() => {
     isMountedRef.current = true;
-    performCheck(0);
+    const initialTimer = setTimeout(() => {
+      performCheckRef.current(0);
+    }, 0);
 
     return () => {
       isMountedRef.current = false;
+      clearTimeout(initialTimer);
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     };
-  }, [performCheck]);
+  }, []);
 
   return { status, health, error, retryCount, checkServer };
 }

@@ -1,5 +1,5 @@
 """
-PyTorch model architecture, checkpoint loader, and inference wrapper for PapSmear-BD AB-MIL.
+PyTorch model architecture, checkpoint loader, and inference wrapper for PapLens AB-MIL.
 Implements the hybrid weights strategy (local weights first, Hugging Face Hub fallback).
 """
 import os

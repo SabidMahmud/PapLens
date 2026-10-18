@@ -102,7 +102,7 @@ async def health():
     },
     summary="Run Cytological Inference & Attention Heatmap",
     description=(
-        "Upload a Pap smear Field-of-View (FOV) image (JPEG or PNG, up to 15MB). "
+        "Upload a Pap smear Field-of-View (FOV) image (JPEG or PNG, up to 10MB). "
         "Returns slide-level prediction, class probabilities, and a base64 attention heatmap."
     ),
 )

@@ -43,14 +43,15 @@ export async function checkHealth(signal?: AbortSignal): Promise<HealthResponse>
     }
 
     return await res.json();
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
       throw new ApiClientError('Health check aborted.', undefined, 'Health check request was cancelled.');
     }
+    const message = error instanceof Error ? error.message : 'Network connection failed.';
     throw new ApiClientError(
       'Cannot connect to PapLens model server.',
       undefined,
-      error.message || 'Network connection failed.'
+      message
     );
   }
 }
@@ -109,14 +110,18 @@ export async function predictImage(
     }
 
     return await response.json();
-  } catch (error: any) {
+  } catch (error: unknown) {
     clearTimeout(timeoutId);
 
     if (error instanceof ApiClientError) {
       throw error;
     }
 
-    if (error?.name === 'AbortError' || controller.signal.aborted) {
+    const isAbort =
+      (error instanceof Error && error.name === 'AbortError') ||
+      controller.signal.aborted;
+
+    if (isAbort) {
       throw new ApiClientError(
         'Inference request timed out or was cancelled. If the model server is waking up, please retry in a moment.',
         408,
@@ -124,10 +129,11 @@ export async function predictImage(
       );
     }
 
+    const message = error instanceof Error ? error.message : 'Network error';
     throw new ApiClientError(
       'Unable to connect to the PapLens model server. It may be starting up or sleeping on Hugging Face Spaces free tier.',
       undefined,
-      error.message || 'Network error'
+      message
     );
   }
 }

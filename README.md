@@ -1,6 +1,6 @@
 # PapLens
 
-Interpretable cervical cytology classification. Demo of a model from the PapSmear-BD study.
+Interpretable cervical cytology classification with attention-based multiple instance learning. Research demo.
 
 > [!IMPORTANT]
 > **Dataset Attribution:**  
