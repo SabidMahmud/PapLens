@@ -131,7 +131,7 @@ flowchart TD
         K8sService["k3s ClusterIP Service (Port 7860)"]
         K8sPod["Backend Pod (1 Replica, Non-Root, Read-Only Root)"]
         K8sCORS["CORS Middleware (ALLOWED_ORIGINS)"]
-        K8sValidation["Server-Side Validation (10 MB Limit, JPEG/PNG)"]
+        K8sValidation["Server-Side Validation (50 MiB, 4000x3000, JPEG/PNG)"]
         K8sModelManager["ModelManager (Startup Weight Resolver)"]
         K8sBackbone["ResNet-50 Feature Extractor (2048-d)"]
         K8sAttention["Gated Attention Module"]
@@ -143,7 +143,7 @@ flowchart TD
         HFGateway["Hugging Face Edge Gateway (HTTPS)"]
         HFContainer["Docker Container (Port 7860, appuser:1000)"]
         HFCORS["CORS Middleware (ALLOWED_ORIGINS)"]
-        HFValidation["Server-Side Validation (10 MB Limit, JPEG/PNG)"]
+        HFValidation["Server-Side Validation (50 MiB, 4000x3000, JPEG/PNG)"]
         HFModelManager["ModelManager (Startup Weight Resolver)"]
         HFBackbone["ResNet-50 Feature Extractor (2048-d)"]
         HFAttention["Gated Attention Module"]
@@ -470,7 +470,7 @@ Performs slide-level inference and returns classification probabilities alongsid
 - `model_type` *(query parameter, string, optional)*: Target classification model. Options: `triage` (default) or `severity`.
 
 **Request Body:**
-- `file` *(form-data, binary, required)*: The Pap-smear FOV image file (JPEG or PNG, maximum 10 MB).
+- `file` *(form-data, binary, required)*: The Pap-smear FOV image file (JPEG or PNG, maximum 50 MiB and 4000x3000 pixels in either orientation).
 
 **Example cURL Request:**
 ```bash

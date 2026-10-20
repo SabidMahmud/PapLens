@@ -8,7 +8,13 @@ metadata:
     app.kubernetes.io/component: inference-api
 data:
   ALLOWED_ORIGINS: "https://paplens.vercel.app,http://localhost:3000,http://127.0.0.1:3000"
-  MAX_UPLOAD_MB: "10"
+  MAX_UPLOAD_MB: "50"
+  MAX_IMAGE_PIXELS: "12000000"
+  MAX_LONG_SIDE: "4000"
+  MAX_SHORT_SIDE: "3000"
+  MAX_CONCURRENT_INFERENCES: "1"
+  MAX_QUEUED_INFERENCES: "2"
+  INFERENCE_QUEUE_TIMEOUT_SECONDS: "30"
   PORT: "7860"
   TORCH_THREADS: "4"
   HF_REPO_ID: "sabidmahmud/paplens-weights"

@@ -616,7 +616,13 @@ curl -s -X POST \
 | `HF_TOKEN` | _(empty)_ | Hugging Face read access token. Required only if the weights repository is private. |
 | `DEVICE` | `cpu` | PyTorch compute device. Only `cpu` is supported in the current deployment. |
 | `TORCH_THREADS` | `4` | `torch.set_num_threads()` value. Reduce if the host has fewer physical cores. |
-| `MAX_UPLOAD_MB` | `10` | Maximum accepted image file size in megabytes. |
+| `MAX_UPLOAD_MB` | `50` | Maximum accepted image file size in MiB. |
+| `MAX_LONG_SIDE` | `4000` | Maximum pixels on the image's longest side. |
+| `MAX_SHORT_SIDE` | `3000` | Maximum pixels on the image's shortest side. |
+| `MAX_IMAGE_PIXELS` | `12000000` | Maximum decoded image area. |
+| `MAX_CONCURRENT_INFERENCES` | `1` | Maximum active inference pipelines per process. |
+| `MAX_QUEUED_INFERENCES` | `2` | Maximum requests waiting for inference. |
+| `INFERENCE_QUEUE_TIMEOUT_SECONDS` | `30` | Maximum queue wait before returning HTTP 503. |
 | `PORT` | `7860` | Uvicorn listen port. Must match the Kubernetes Service `targetPort` and Hugging Face Space `app_port`. |
 
 ### Frontend (Vercel / `.env.local`)

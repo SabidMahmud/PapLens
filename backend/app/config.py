@@ -22,9 +22,10 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
 
     # Upload & Image Constraints
-    MAX_UPLOAD_MB: int = 10
-    MAX_IMAGE_PIXELS: int = 50_000_000  # Cap on raw image size (e.g. 50 MP; 4000x3000 is 12 MP)
-    MAX_DIMENSION: int = 6000  # Max width/height to protect memory
+    MAX_UPLOAD_MB: int = 50
+    MAX_IMAGE_PIXELS: int = 12_000_000
+    MAX_LONG_SIDE: int = 4000
+    MAX_SHORT_SIDE: int = 3000
 
     # Patch Extraction Hyperparameters (matching research evaluation exactly)
     PATCH_SIZE: int = 1280
@@ -42,6 +43,11 @@ class Settings(BaseSettings):
     # PyTorch CPU Runtime Settings
     DEVICE: str = "cpu"
     TORCH_THREADS: int = 4
+
+    # Inference admission control. This is separate from edge rate limiting.
+    MAX_CONCURRENT_INFERENCES: int = 1
+    MAX_QUEUED_INFERENCES: int = 2
+    INFERENCE_QUEUE_TIMEOUT_SECONDS: float = 30.0
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
