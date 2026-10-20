@@ -7,14 +7,30 @@ import threading
 
 import numpy as np
 import pytest
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
 from PIL import Image
 
+from app.api.upload import read_upload_with_limit
 from app.config import settings
+from app.errors import UploadTooLargeError
 from app.inference_gate import InferenceGate
-from app import main as main_module
-from app.main import read_upload_with_limit, run_prediction
-from app.preprocess import extract_patches, validate_and_decode_image
+from app.ml.pipeline import ModelManager
+from app.preprocess import (
+    ImageDimensionsExceeded,
+    extract_patches,
+    validate_and_decode_image,
+)
+from app.services.prediction import PredictionService
+
+
+@pytest.fixture
+def prediction_service():
+    service = PredictionService(ModelManager())
+    service.start()
+    try:
+        yield service
+    finally:
+        service.shutdown()
 
 
 def png_bytes(width: int, height: int) -> bytes:
@@ -59,15 +75,15 @@ def test_rejects_images_over_total_pixel_limit(monkeypatch):
         validate_and_decode_image(png_bytes(40, 30))
 
 
-def test_prediction_reports_dimension_failure_as_422(monkeypatch):
+def test_prediction_service_preserves_dimension_error(
+    monkeypatch, prediction_service
+):
     monkeypatch.setattr(settings, "MAX_LONG_SIDE", 40)
     monkeypatch.setattr(settings, "MAX_SHORT_SIDE", 30)
     monkeypatch.setattr(settings, "MAX_IMAGE_PIXELS", 10_000)
 
-    with pytest.raises(HTTPException) as exc_info:
-        run_prediction(png_bytes(41, 30), "triage")
-
-    assert exc_info.value.status_code == 422
+    with pytest.raises(ImageDimensionsExceeded):
+        prediction_service.run_prediction(png_bytes(41, 30), "triage")
 
 
 def test_maximum_dimensions_imply_24_patches_without_an_explicit_cap():
@@ -89,10 +105,8 @@ def test_streamed_upload_rejects_payload_over_limit(monkeypatch):
         size=None,
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(UploadTooLargeError):
         asyncio.run(read_upload_with_limit(upload))
-
-    assert exc_info.value.status_code == 413
 
 
 def test_streamed_upload_accepts_payload_at_limit(monkeypatch):
@@ -132,7 +146,9 @@ def test_inference_gate_rejects_when_active_and_queue_are_full():
     asyncio.run(scenario())
 
 
-def test_cancelled_request_keeps_capacity_until_worker_finishes(monkeypatch):
+def test_cancelled_request_keeps_capacity_until_worker_finishes(
+    monkeypatch, prediction_service
+):
     worker_started = threading.Event()
     allow_worker_to_finish = threading.Event()
 
@@ -141,11 +157,11 @@ def test_cancelled_request_keeps_capacity_until_worker_finishes(monkeypatch):
         allow_worker_to_finish.wait(timeout=1)
         return object()
 
-    monkeypatch.setattr(main_module, "run_prediction", fake_prediction)
+    monkeypatch.setattr(prediction_service, "run_prediction", fake_prediction)
 
     async def scenario() -> None:
         task = asyncio.create_task(
-            main_module.run_prediction_off_event_loop(b"image", "triage")
+            prediction_service.run_off_event_loop(b"image", "triage")
         )
         while not worker_started.is_set():
             await asyncio.sleep(0)

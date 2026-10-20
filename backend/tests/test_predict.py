@@ -3,10 +3,14 @@ Prediction endpoint tests using synthetic images.
 Verifies schema, both triage and severity modes, and inference determinism.
 """
 import numpy as np
+import pytest
 
 
-def test_predict_triage(client, synthetic_fov_image_bytes):
-    response = client.post(
+pytestmark = pytest.mark.anyio
+
+
+async def test_predict_triage(client, synthetic_fov_image_bytes):
+    response = await client.post(
         "/predict?model_type=triage",
         files={"file": ("sample_fov.jpg", synthetic_fov_image_bytes, "image/jpeg")},
     )
@@ -29,8 +33,8 @@ def test_predict_triage(client, synthetic_fov_image_bytes):
     assert data["display_height"] > 0
 
 
-def test_predict_severity(client, synthetic_fov_image_bytes):
-    response = client.post(
+async def test_predict_severity(client, synthetic_fov_image_bytes):
+    response = await client.post(
         "/predict?model_type=severity",
         files={"file": ("sample_fov.jpg", synthetic_fov_image_bytes, "image/jpeg")},
     )
@@ -45,9 +49,9 @@ def test_predict_severity(client, synthetic_fov_image_bytes):
     assert "High_Grade" in data["probabilities"]
 
 
-def test_predict_small_image_padding(client, synthetic_small_image_bytes):
+async def test_predict_small_image_padding(client, synthetic_small_image_bytes):
     """Verifies that images smaller than 1280x1280 are safely handled without crashes."""
-    response = client.post(
+    response = await client.post(
         "/predict?model_type=triage",
         files={"file": ("small.png", synthetic_small_image_bytes, "image/png")},
     )
@@ -56,13 +60,13 @@ def test_predict_small_image_padding(client, synthetic_small_image_bytes):
     assert data["num_patches"] >= 1
 
 
-def test_predict_determinism(client, synthetic_fov_image_bytes):
+async def test_predict_determinism(client, synthetic_fov_image_bytes):
     """Verifies that identical inputs yield identical outputs (determinism)."""
-    resp1 = client.post(
+    resp1 = await client.post(
         "/predict?model_type=triage",
         files={"file": ("sample.jpg", synthetic_fov_image_bytes, "image/jpeg")},
     )
-    resp2 = client.post(
+    resp2 = await client.post(
         "/predict?model_type=triage",
         files={"file": ("sample.jpg", synthetic_fov_image_bytes, "image/jpeg")},
     )
