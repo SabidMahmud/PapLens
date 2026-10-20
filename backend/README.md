@@ -95,9 +95,11 @@ The Hugging Face Space functions as the automatic failsafe backend for PapLens.
 ## API Endpoints
 
 - `GET /`: API welcome banner and documentation link.
-- `GET /health`: Server health check, uptime, and model load status.
+- `GET /health`: Readiness check; returns HTTP 503 until all models are loaded.
 - `POST /predict`: Slide bag inference. Accepts multipart form data (`file`) with optional `model_type` query parameter (`triage` or `severity`).
 - `GET /docs`: Interactive Swagger UI documentation.
+
+API errors consistently use `{"error": "<code>", "detail": "<message>"}`.
 
 ---
 

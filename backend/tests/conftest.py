@@ -6,23 +6,32 @@ import io
 from pathlib import Path
 import sys
 import numpy as np
+import httpx
 import pytest
 from PIL import Image
-from fastapi.testclient import TestClient
 
 # Add backend directory to sys.path
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
 from app.main import app
-from app.model import model_manager
 
 
 @pytest.fixture(scope="session")
-def client():
-    """TestClient that initializes the FastAPI lifespan once."""
-    with TestClient(app) as test_client:
-        yield test_client
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.fixture(scope="session")
+async def client():
+    """ASGI client that initializes the real application lifespan once."""
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://test",
+        ) as test_client:
+            yield test_client
 
 
 @pytest.fixture(scope="session")

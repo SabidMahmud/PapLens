@@ -1,8 +1,14 @@
 """
 Health and Root endpoint tests.
 """
-def test_root_endpoint(client):
-    response = client.get("/")
+import pytest
+
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_root_endpoint(client):
+    response = await client.get("/")
     assert response.status_code == 200
     data = response.json()
     assert "service" in data
@@ -10,8 +16,8 @@ def test_root_endpoint(client):
     assert "disclaimer" in data
 
 
-def test_health_endpoint(client):
-    response = client.get("/health")
+async def test_health_endpoint(client):
+    response = await client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"

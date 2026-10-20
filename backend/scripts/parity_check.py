@@ -20,9 +20,12 @@ import torchvision.transforms as transforms
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
-from app.model import model_manager
+from app.ml.pipeline import ModelManager
 from app.preprocess import validate_and_decode_image, extract_patches
 from app.labels import TRIAGE_CLASSES, SEVERITY_CLASSES
+
+
+model_manager = ModelManager()
 
 # ---------------------------------------------------------------------------
 # 1. REPRODUCED ORIGINAL RESEARCH PIPELINE (directly from thesis notebooks)

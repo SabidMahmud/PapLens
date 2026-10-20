@@ -10,10 +10,7 @@ import torch
 import torchvision.transforms as transforms
 
 from app.config import settings
-
-
-class ImageDimensionsExceeded(ValueError):
-    """Raised when decoded image dimensions exceed configured safety limits."""
+from app.errors import ImageDimensionsExceeded
 
 
 # ImageNet normalization transform matching research pipeline
@@ -22,18 +19,6 @@ patch_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
-
-
-def is_background(patch_array: np.ndarray, threshold: float = settings.BG_THRESHOLD) -> bool:
-    """
-    Determines whether a patch is non-diagnostic background.
-    Matches research logic: a patch is considered background if >threshold fraction
-    of pixels have grayscale intensity > 220.
-    """
-    gray = cv2.cvtColor(patch_array, cv2.COLOR_RGB2GRAY)
-    white_pixels = np.sum(gray > 220)
-    total_pixels = gray.shape[0] * gray.shape[1]
-    return bool((white_pixels / total_pixels) > threshold)
 
 
 def compute_background_ratio(patch_array: np.ndarray) -> float:

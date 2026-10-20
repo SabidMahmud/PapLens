@@ -1,8 +1,14 @@
 """
 Input validation, size rejection, and CORS header tests.
 """
-def test_reject_corrupt_file(client):
-    response = client.post(
+import pytest
+
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_reject_corrupt_file(client):
+    response = await client.post(
         "/predict",
         files={"file": ("corrupted.jpg", b"not a valid image byte stream", "image/jpeg")},
     )
@@ -10,8 +16,8 @@ def test_reject_corrupt_file(client):
     assert "detail" in response.json()
 
 
-def test_reject_invalid_extension(client):
-    response = client.post(
+async def test_reject_invalid_extension(client):
+    response = await client.post(
         "/predict",
         files={"file": ("document.pdf", b"%PDF-1.4...", "application/pdf")},
     )
@@ -19,13 +25,13 @@ def test_reject_invalid_extension(client):
     assert "Unsupported file format" in response.json()["detail"]
 
 
-def test_reject_oversized_file(client, monkeypatch):
+async def test_reject_oversized_file(client, monkeypatch):
     from app.config import settings
     # Temporarily set max upload to 0.001 MB (1 KB) to test rejection
     monkeypatch.setattr(settings, "MAX_UPLOAD_MB", 0.001)
 
     big_payload = b"x" * 2000  # 2 KB > 1 KB
-    response = client.post(
+    response = await client.post(
         "/predict",
         files={"file": ("large.jpg", big_payload, "image/jpeg")},
     )
@@ -33,9 +39,8 @@ def test_reject_oversized_file(client, monkeypatch):
     assert "exceeds maximum upload size" in response.json()["detail"]
 
 
-def test_cors_headers_allowed_origin(client):
-    headers = {"Origin": "http://localhost:3000"}
-    response = client.options(
+async def test_cors_headers_allowed_origin(client):
+    response = await client.options(
         "/predict",
         headers={
             "Origin": "http://localhost:3000",
@@ -45,8 +50,8 @@ def test_cors_headers_allowed_origin(client):
     assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
 
 
-def test_cors_disallow_untrusted_origin(client):
-    response = client.options(
+async def test_cors_disallow_untrusted_origin(client):
+    response = await client.options(
         "/predict",
         headers={
             "Origin": "http://malicious-site.com",

@@ -13,7 +13,7 @@ from PIL import Image
 from app.config import settings
 
 
-def encode_array_to_base64_png(image_rgb: np.ndarray, quality: int = 90) -> str:
+def encode_array_to_base64_png(image_rgb: np.ndarray) -> str:
     """
     Encodes an RGB uint8 numpy image into a base64 PNG data URI string.
     """
@@ -79,7 +79,7 @@ def generate_attention_heatmap(
             - original_display_base64: downscaled original image data URI
             - display_width: width of display images
             - display_height: height of display images
-            - top_patches: list of top diagnostic patches with normalized attention scores and coords
+            - top_patches: diagnostic patches with normalized attention and coords
     """
     # Ensure 3-channel RGB uint8 format
     if orig_img_rgb.ndim == 2:
