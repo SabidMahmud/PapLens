@@ -5,12 +5,12 @@ from typing import Dict, List, Literal
 
 ModelType = Literal["triage", "severity"]
 
-# 2-Class Clinical Triage (04_2Class_Triage)
+# 2-Class Clinical Triage (2Class_Triage)
 TRIAGE_CLASSES: List[str] = ["Normal", "Abnormal"]
 TRIAGE_CLASS_TO_IDX: Dict[str, int] = {"Normal": 0, "Abnormal": 1}
 TRIAGE_IDX_TO_CLASS: Dict[int, str] = {0: "Normal", 1: "Abnormal"}
 
-# 3-Class Severity Grading (05_3Class_Severity)
+# 3-Class Severity Grading (3Class_Severity)
 SEVERITY_CLASSES: List[str] = ["Normal", "Low_Grade", "High_Grade"]
 SEVERITY_CLASS_TO_IDX: Dict[str, int] = {"Normal": 0, "Low_Grade": 1, "High_Grade": 2}
 SEVERITY_IDX_TO_CLASS: Dict[int, str] = {0: "Normal", 1: "Low_Grade", 2: "High_Grade"}

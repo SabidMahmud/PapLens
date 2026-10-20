@@ -1,112 +1,81 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-
-interface SampleImageItem {
-  name: string;
-  filename: string;
-  label: string;
-  description: string;
-}
+import Image from 'next/image';
+import { useRef, useState } from 'react';
 
 interface SampleImagesProps {
   onSelectSample: (file: File) => void;
   isLoading: boolean;
+  selectedFilename?: string;
 }
 
-// Default metadata for samples when placed in public/samples/
-const AVAILABLE_SAMPLES: SampleImageItem[] = [
-  // Populated dynamically if placed by user
+const SAMPLES = [
+  { filename: 'sample_nilm.jpg', label: 'NILM', family: 'Normal' },
+  { filename: 'sample_ascus.jpg', label: 'ASC-US', family: 'Atypical' },
+  { filename: 'sample_lsil.jpg', label: 'LSIL', family: 'Low grade' },
+  { filename: 'sample_hsil.jpg', label: 'HSIL', family: 'High grade' },
+  { filename: 'sample_scc.jpg', label: 'SCC', family: 'Malignant' },
 ];
 
-export const SampleImages: React.FC<SampleImagesProps> = ({ onSelectSample, isLoading }) => {
-  const [samples, setSamples] = useState<SampleImageItem[]>(AVAILABLE_SAMPLES);
+export function SampleImages({ onSelectSample, isLoading, selectedFilename }: SampleImagesProps) {
   const [loadingSample, setLoadingSample] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pending = useRef(false);
 
-  // Checks if public/samples contains any user-provided sample images
-  useEffect(() => {
-    // Attempt to probe known sample filenames if user places any in public/samples
-    const probeSamples = async () => {
-      const candidates = [
-        { name: 'Normal (NILM) Sample', filename: 'sample_nilm.jpg', label: 'Normal', description: 'Clean negative squamous field' },
-        { name: 'Low-Grade (LSIL) Sample', filename: 'sample_lsil.jpg', label: 'Low-Grade', description: 'Koilocytes and mild nuclear enlargement' },
-        { name: 'High-Grade (HSIL) Sample', filename: 'sample_hsil.jpg', label: 'High-Grade', description: 'Marked dyskaryosis and irregular chromatin' },
-      ];
-
-      const found: SampleImageItem[] = [];
-      for (const item of candidates) {
-        try {
-          const res = await fetch(`/samples/${item.filename}`, { method: 'HEAD' });
-          if (res.ok) {
-            found.push(item);
-          }
-        } catch {
-          // Ignore 404
-        }
-      }
-      setSamples(found);
-    };
-
-    probeSamples();
-  }, []);
-
-  const loadSample = async (item: SampleImageItem) => {
-    if (isLoading) return;
-    setLoadingSample(item.filename);
-
+  const loadSample = async (filename: string) => {
+    if (isLoading || pending.current) return;
+    pending.current = true;
+    setError(null);
+    setLoadingSample(filename);
     try {
-      const res = await fetch(`/samples/${item.filename}`);
-      if (!res.ok) throw new Error('Failed to fetch sample image.');
-      const blob = await res.blob();
-      const file = new File([blob], item.filename, { type: blob.type || 'image/jpeg' });
-      onSelectSample(file);
-    } catch (err) {
-      console.error('Error loading sample image:', err);
+      const response = await fetch(`/samples/${filename}`);
+      if (!response.ok) throw new Error('Sample could not be loaded.');
+      const blob = await response.blob();
+      onSelectSample(new File([blob], filename, { type: blob.type || 'image/jpeg' }));
+    } catch {
+      setError('This sample could not be loaded. Try again or upload your own image.');
     } finally {
+      pending.current = false;
       setLoadingSample(null);
     }
   };
 
-  // If no samples were placed in public/samples, return null so UI stays clean
-  if (samples.length === 0) {
-    return null;
-  }
-
   return (
-    <div className="w-full bg-slate-900/60 rounded-2xl border border-slate-800 p-6 backdrop-blur-md">
-      <div className="flex items-center justify-between mb-4">
+    <section aria-labelledby="sample-fields-title">
+      <div className="mb-4 flex items-end justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-slate-200">Sample Microscopy Images</h3>
-          <p className="text-xs text-slate-400">Click any sample to test model inference instantly</p>
+          <p className="quiet-label text-[#0d6b62]">Reference fields</p>
+          <h2 id="sample-fields-title" className="font-display mt-2 text-2xl text-[#17211f]">Start with a sample</h2>
         </div>
+        <p className="max-w-48 text-right text-xs leading-5 text-[#65706c]">Select a field, then run your chosen analysis.</p>
       </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {samples.map((item) => (
-          <button
-            key={item.filename}
-            type="button"
-            onClick={() => loadSample(item)}
-            disabled={isLoading || loadingSample === item.filename}
-            className="flex items-center gap-3 p-3 rounded-xl bg-slate-950/40 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-950/80 text-left transition-all disabled:opacity-50 group"
-          >
-            <div className="w-12 h-12 rounded-lg bg-slate-800 border border-slate-700/80 overflow-hidden flex-shrink-0 relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/samples/${item.filename}`}
-                alt={item.name}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-xs font-semibold text-slate-200 block truncate group-hover:text-indigo-300">
-                {item.name}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {SAMPLES.map((sample) => {
+          const loading = loadingSample === sample.filename;
+          return (
+            <button
+              key={sample.filename}
+              type="button"
+              onClick={() => loadSample(sample.filename)}
+              disabled={isLoading || loadingSample !== null}
+              className={`group min-w-0 overflow-hidden border bg-[#fbfaf7] text-left transition-colors hover:border-[#0d6b62] disabled:opacity-60 ${selectedFilename === sample.filename ? 'border-[#0d6b62] ring-1 ring-[#0d6b62]' : 'border-[#c7cac4]'}`}
+              aria-label={`Select ${sample.label} sample`}
+              aria-pressed={selectedFilename === sample.filename}
+            >
+              <div className="relative aspect-[2/1] overflow-hidden bg-[#1d2422]">
+                <Image src={`/samples/${sample.filename}`} alt={`${sample.label} microscopy sample`} fill sizes="(max-width: 640px) 50vw, 20vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.025]" />
+                {loading && <span className="absolute inset-0 grid place-items-center bg-[#111715]/70 text-[10px] font-bold uppercase tracking-wider text-white">Loading</span>}
+              </div>
+              <span className="flex flex-wrap items-center justify-between gap-1 px-3 py-3">
+                <span className="text-xs font-bold text-[#17211f]">{sample.label}</span>
+                <span className="text-[10px] uppercase tracking-[0.12em] text-[#737c78]">{sample.family}</span>
               </span>
-              <span className="text-[11px] text-slate-400 block truncate">{item.description}</span>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
-    </div>
+      <p role="status" className="mt-3 text-xs text-[#65706c]">{loadingSample ? 'Loading sample…' : selectedFilename?.startsWith('sample_') ? 'Sample selected. Review the image and protocol above, then run analysis.' : 'Sample labels describe the reference fields, not a new model prediction.'}</p>
+      {error && <p role="alert" className="mt-2 text-sm text-[#a33d35]">{error}</p>}
+    </section>
   );
-};
+}

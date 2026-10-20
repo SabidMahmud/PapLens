@@ -1,0 +1,16 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: paplens
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/name: paplens
+spec:
+  interval: 5m0s
+  url: https://github.com/SabidMahmud/PapLens.git
+  ref:
+    branch: main
+  ignore: |
+    # Exclude files that do not affect Kubernetes deployment
+    /*
+    !/deploy/k8s

@@ -1,33 +1,18 @@
 'use client';
 
-import React from 'react';
-
 interface ErrorBannerProps {
   message: string;
   onDismiss: () => void;
 }
 
-export const ErrorBanner: React.FC<ErrorBannerProps> = ({ message, onDismiss }) => {
+export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
   return (
-    <div className="w-full rounded-xl bg-rose-950/80 border border-rose-500/40 p-4 text-rose-200 flex items-start justify-between gap-3 shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-200">
-      <div className="flex items-start gap-3">
-        <svg className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-        </svg>
-        <div>
-          <h4 className="font-semibold text-sm text-rose-100">Inference Error</h4>
-          <p className="text-xs text-rose-300 mt-0.5 leading-relaxed">{message}</p>
-        </div>
+    <div role="alert" className="flex items-start justify-between gap-4 border border-[#d9a39e] border-l-4 border-l-[#a33d35] bg-[#f8e9e6] p-4 text-[#6f2d28]">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.1em]">Analysis could not be completed</p>
+        <p className="mt-1 text-xs leading-5">{message}</p>
       </div>
-      <button
-        onClick={onDismiss}
-        className="text-rose-400 hover:text-rose-200 p-1 rounded-lg hover:bg-rose-900/50 transition-colors"
-        aria-label="Dismiss error"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+      <button type="button" onClick={onDismiss} aria-label="Dismiss error" className="grid h-11 w-11 shrink-0 place-items-center border border-[#d9a39e] text-lg leading-none transition-colors hover:bg-[#a33d35] hover:text-white">×</button>
     </div>
   );
-};
+}

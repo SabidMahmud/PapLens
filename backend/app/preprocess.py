@@ -1,5 +1,5 @@
 """
-Image validation, decoding, patch extraction, and normalization for PapSmear-BD AB-MIL.
+Image validation, decoding, patch extraction, and normalization for PapLens AB-MIL.
 """
 import io
 from typing import List, Tuple

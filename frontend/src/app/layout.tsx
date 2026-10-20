@@ -3,20 +3,24 @@ import { Disclaimer } from '@/components/Disclaimer';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'PapLens - Interpretable Cervical Cytology Classification',
-  description: 'Interpretable cervical cytology classification. Demo of a model from the PapSmear-BD study.',
-  keywords: ['cytology', 'cervical cancer', 'Pap smear', 'Attention MIL', 'ResNet-50', 'microscopy', 'deep learning'],
+  title: 'PapLens — Cytology Evidence Workspace',
+  description:
+    'Research workspace for interpretable cervical cytology classification using attention-based multiple instance learning.',
+  keywords: ['cytology', 'cervical cancer research', 'Pap smear', 'attention MIL', 'microscopy'],
+  openGraph: {
+    title: 'PapLens — Cytology Evidence Workspace',
+    description: 'Inspect slide-level classifications alongside the image regions that informed them.',
+    type: 'website',
+    siteName: 'PapLens',
+  },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark h-full antialiased">
-      <body className="min-h-full flex flex-col bg-[#090d16] text-slate-100 selection:bg-indigo-500/30 selection:text-indigo-200">
-        <main className="flex-1 flex flex-col">{children}</main>
+    <html lang="en">
+      <body className="min-h-screen flex flex-col">
+        <a href="#main-content" className="skip-link">Skip to workspace</a>
+        <div className="flex-1 flex flex-col">{children}</div>
         <Disclaimer />
       </body>
     </html>

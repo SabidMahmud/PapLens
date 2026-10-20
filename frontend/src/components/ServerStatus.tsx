@@ -1,72 +1,36 @@
 'use client';
 
-import React from 'react';
 import { ServerState } from '@/hooks/useBackendStatus';
+import { BackendTarget } from '@/lib/types';
 
 interface ServerStatusProps {
   status: ServerState;
   retryCount: number;
+  target?: BackendTarget;
   onRefresh: () => void;
 }
 
-export const ServerStatus: React.FC<ServerStatusProps> = ({
-  status,
-  retryCount,
-  onRefresh,
-}) => {
+export function ServerStatus({ status, retryCount, target = 'primary', onRefresh }: ServerStatusProps) {
+  const states = {
+    online: {
+      dot: 'bg-[#16877b]',
+      label: target === 'fallback' ? 'Fallback online' : 'System ready',
+      detail: target === 'fallback' ? 'Hugging Face' : 'k3s',
+    },
+    checking: { dot: 'bg-[#b67b22] animate-pulse', label: 'Checking system', detail: '' },
+    waking: { dot: 'bg-[#b67b22] animate-pulse', label: 'Connecting', detail: `Attempt ${retryCount}/5` },
+    offline: { dot: 'bg-[#a33d35]', label: 'System offline', detail: '' },
+  } as const;
+  const current = states[status];
+
   return (
-    <div className="flex items-center gap-2">
-      {status === 'online' && (
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 backdrop-blur-sm shadow-sm">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span>Model Server Ready</span>
-        </div>
-      )}
-
-      {status === 'checking' && (
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-cyan-950/60 text-cyan-300 border border-cyan-500/30 backdrop-blur-sm animate-pulse">
-          <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
-          <span>Connecting to server...</span>
-        </div>
-      )}
-
-      {status === 'waking' && (
-        <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-950/70 text-amber-200 border border-amber-500/40 backdrop-blur-sm animate-pulse">
-          <svg className="animate-spin h-3.5 w-3.5 text-amber-400" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
-          <span>
-            Waking up server on Hugging Face Spaces (attempt {retryCount}/5)... this can take ~30-60s
-          </span>
-          <button
-            onClick={onRefresh}
-            className="underline hover:text-amber-100 focus:outline-none"
-            title="Retry connecting now"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {status === 'offline' && (
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-rose-950/70 text-rose-300 border border-rose-500/40 backdrop-blur-sm">
-          <span className="h-2 w-2 rounded-full bg-rose-500"></span>
-          <span>Server Unreachable</span>
-          <button
-            onClick={onRefresh}
-            className="ml-1 underline hover:text-rose-100 font-semibold focus:outline-none"
-          >
-            Reconnect
-          </button>
-        </div>
+    <div className="flex items-center gap-2 text-xs" data-testid="backend-badge">
+      <span className={`h-2 w-2 rounded-full ${current.dot}`} aria-hidden="true" />
+      <span role="status" className="font-semibold text-[#26312e]">{current.label}</span>
+      {current.detail && <span className="hidden text-[#7a827f] sm:inline">· {current.detail}</span>}
+      {(status === 'offline' || status === 'waking') && (
+        <button type="button" onClick={onRefresh} className="min-h-11 px-2 text-xs font-semibold text-[#65706c] underline underline-offset-4 hover:text-[#0d6b62]">Retry</button>
       )}
     </div>
   );
-};
+}

@@ -1,8 +1,5 @@
 ---
 title: PapLens Backend API
-emoji: 🔬
-colorFrom: blue
-colorTo: indigo
 sdk: docker
 app_port: 7860
 pinned: false
@@ -48,20 +45,23 @@ The backend is configured via environment variables (with robust defaults):
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated list of allowed CORS origins. Never use `*` in production. |
 | `MAX_UPLOAD_MB` | `10` | Maximum allowable image upload size in megabytes. |
 | `PORT` | `7860` | Server listen port. |
-| `WEIGHTS_PATH` | `./weights` | Directory containing local model weights. |
+| `WEIGHTS_DIR` | `./weights` | Directory containing local model weights. |
 | `HF_REPO_ID` | `""` | Optional Hugging Face Hub repo ID for hybrid fallback weight downloading. |
-| `TORCH_NUM_THREADS` | `4` | Number of CPU intra-op threads for PyTorch inference. |
+| `HF_TOKEN` | `""` | Optional Hugging Face Hub token for downloading from private model repositories. |
+| `TORCH_THREADS` | `4` | Number of CPU intra-op threads for PyTorch inference. |
 
 ---
 
 ## Deployment to Hugging Face Spaces
+
+The Hugging Face Space functions as the automatic failsafe backend for PapLens.
 
 ### Step-by-Step Guide:
 1. **Create Space:**
    - Go to [huggingface.co/new-space](https://huggingface.co/new-space).
    - Space name: `paplens-backend` (or `paplens`).
    - SDK: **Docker**.
-   - Hardware: **CPU (Free)**.
+   - Hardware: **CPU Basic (Free)**.
 
 2. **Push Repository:**
    ```bash
@@ -77,10 +77,12 @@ The backend is configured via environment variables (with robust defaults):
    - In Hugging Face Space Settings -> **Variables and secrets**:
      - Variable: `ALLOWED_ORIGINS`
      - Value: `https://<your-vercel-domain>.vercel.app,http://localhost:3000`
+     - Variable (optional): `HF_REPO_ID`
+     - Secret (optional): `HF_TOKEN`
 
 4. **Connect Frontend:**
    - Your Space public URL is `https://<your-username>-paplens.hf.space`.
-   - Set this URL as `NEXT_PUBLIC_API_URL` in your Vercel deployment settings.
+   - Set this URL as `NEXT_PUBLIC_API_URL_FALLBACK` in your Vercel deployment settings.
 
 ---
 
@@ -90,3 +92,11 @@ The backend is configured via environment variables (with robust defaults):
 - `GET /health`: Server health check, uptime, and model load status.
 - `POST /predict`: Slide bag inference. Accepts multipart form data (`file`) with optional `model_type` query parameter (`triage` or `severity`).
 - `GET /docs`: Interactive Swagger UI documentation.
+
+---
+
+## Subsystem Documentation
+
+- [Root Project README](../README.md): System architecture, empirical benchmarks, and research methodology.
+- [Frontend Documentation](../frontend/README.md): Next.js user interface, client failover resolver, and Vercel hosting.
+- [Deployment Guide](../deploy/README.md): Dual-deployment instructions for k3s GitOps (Flux CD v2) and Hugging Face Spaces.

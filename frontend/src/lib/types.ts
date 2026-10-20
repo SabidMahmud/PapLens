@@ -1,8 +1,16 @@
 /**
- * TypeScript type definitions mirroring backend FastAPI schemas.
+ * TypeScript type definitions mirroring backend FastAPI schemas and client failover state.
  */
 
 export type ModelType = 'triage' | 'severity';
+
+export type BackendTarget = 'primary' | 'fallback';
+
+export interface BackendResolution {
+  target: BackendTarget;
+  baseUrl: string;
+  label: string; // "k3s cluster" or "Hugging Face Spaces (fallback)"
+}
 
 export interface DiagnosticPatchInfo {
   rank: number;
@@ -40,6 +48,9 @@ export interface PredictionResponse {
   display_width: number;
   display_height: number;
   top_patches: DiagnosticPatchInfo[];
+
+  // Failover resolution telemetry
+  served_by?: BackendTarget;
 }
 
 export interface HealthResponse {
@@ -49,6 +60,7 @@ export interface HealthResponse {
   device: string;
   torch_threads: number;
   version: string;
+  served_by?: BackendTarget;
 }
 
 export interface ApiError {

@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { checkHealth } from '@/lib/api';
-import { HealthResponse } from '@/lib/types';
+import { checkHealth, getActiveBackendTarget } from '@/lib/api';
+import { BackendTarget, HealthResponse } from '@/lib/types';
 
 export type ServerState = 'checking' | 'online' | 'waking' | 'offline';
 
@@ -11,17 +11,21 @@ export interface UseBackendStatusReturn {
   health: HealthResponse | null;
   error: string | null;
   retryCount: number;
+  target: BackendTarget;
   checkServer: () => void;
 }
 
 export function useBackendStatus(): UseBackendStatusReturn {
   const [status, setStatus] = useState<ServerState>('checking');
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [target, setTarget] = useState<BackendTarget>(getActiveBackendTarget());
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState<number>(0);
 
   const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef<boolean>(true);
+
+  const performCheckRef = useRef<(retry: number) => Promise<void>>(async () => {});
 
   const performCheck = useCallback(async (currentRetry: number = 0) => {
     if (!isMountedRef.current) return;
@@ -40,10 +44,13 @@ export function useBackendStatus(): UseBackendStatusReturn {
         setHealth(data);
         setStatus('online');
         setRetryCount(0);
+        if (data.served_by) {
+          setTarget(data.served_by);
+        }
       } else {
         throw new Error('Models still initializing on server.');
       }
-    } catch (err: any) {
+    } catch {
       clearTimeout(timeoutId);
       if (!isMountedRef.current) return;
 
@@ -55,7 +62,7 @@ export function useBackendStatus(): UseBackendStatusReturn {
         // Exponential backoff: 3s, 5s, 8s, 12s, 15s
         const backoffMs = Math.min(3000 * Math.pow(1.4, nextRetry - 1), 15000);
         retryTimerRef.current = setTimeout(() => {
-          performCheck(nextRetry);
+          performCheckRef.current(nextRetry);
         }, backoffMs);
       } else {
         setStatus('offline');
@@ -67,6 +74,10 @@ export function useBackendStatus(): UseBackendStatusReturn {
     }
   }, []);
 
+  useEffect(() => {
+    performCheckRef.current = performCheck;
+  }, [performCheck]);
+
   const checkServer = useCallback(() => {
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     performCheck(0);
@@ -74,13 +85,16 @@ export function useBackendStatus(): UseBackendStatusReturn {
 
   useEffect(() => {
     isMountedRef.current = true;
-    performCheck(0);
+    const initialTimer = setTimeout(() => {
+      performCheckRef.current(0);
+    }, 0);
 
     return () => {
       isMountedRef.current = false;
+      clearTimeout(initialTimer);
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     };
-  }, [performCheck]);
+  }, []);
 
-  return { status, health, error, retryCount, checkServer };
+  return { status, health, error, retryCount, target, checkServer };
 }

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
 
     # Upload & Image Constraints
-    MAX_UPLOAD_MB: int = 15
+    MAX_UPLOAD_MB: int = 10
     MAX_IMAGE_PIXELS: int = 50_000_000  # Cap on raw image size (e.g. 50 MP; 4000x3000 is 12 MP)
     MAX_DIMENSION: int = 6000  # Max width/height to protect memory
 

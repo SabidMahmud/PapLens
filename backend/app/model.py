@@ -1,5 +1,5 @@
 """
-PyTorch model architecture, checkpoint loader, and inference wrapper for PapSmear-BD AB-MIL.
+PyTorch model architecture, checkpoint loader, and inference wrapper for PapLens AB-MIL.
 Implements the hybrid weights strategy (local weights first, Hugging Face Hub fallback).
 """
 import os
@@ -68,11 +68,18 @@ def resolve_weight_path(pipeline_folder: str, filename: str) -> str:
     """
     Hybrid weight resolver:
     1. Checks local path in settings.WEIGHTS_DIR/pipeline_folder/filename
-    2. If not found locally, falls back to downloading from Hugging Face Hub (if HF_REPO_ID is set).
+    2. Checks legacy folder prefix (04_/05_) if present locally for backwards compatibility
+    3. If not found locally, falls back to downloading from Hugging Face Hub (if HF_REPO_ID is set).
     """
     local_path = Path(settings.WEIGHTS_DIR) / pipeline_folder / filename
     if local_path.is_file():
         return str(local_path)
+
+    # Legacy fallback check (04_2Class_Triage or 05_3Class_Severity)
+    legacy_folder = f"04_{pipeline_folder}" if "2Class" in pipeline_folder else f"05_{pipeline_folder}"
+    legacy_path = Path(settings.WEIGHTS_DIR) / legacy_folder / filename
+    if legacy_path.is_file():
+        return str(legacy_path)
 
     # Attempt Hugging Face Hub fallback download
     if settings.HF_REPO_ID:
@@ -182,15 +189,15 @@ class ModelManager:
             torch.set_num_threads(settings.TORCH_THREADS)
 
         # 1. Load 2-Class Clinical Triage pipeline
-        triage_extractor_path = resolve_weight_path("04_2Class_Triage", "best_cnn_extractor.pth")
-        triage_abmil_path = resolve_weight_path("04_2Class_Triage", "best_abmil_focal.pth")
+        triage_extractor_path = resolve_weight_path("2Class_Triage", "best_cnn_extractor.pth")
+        triage_abmil_path = resolve_weight_path("2Class_Triage", "best_abmil_focal.pth")
         triage_extractor = load_feature_extractor(triage_extractor_path, settings.DEVICE)
         triage_abmil = load_abmil_aggregator(triage_abmil_path, num_classes=2, device=settings.DEVICE)
         self.pipelines["triage"] = ModelPipeline(triage_extractor, triage_abmil, TRIAGE_CLASSES)
 
         # 2. Load 3-Class Severity Grading pipeline
-        severity_extractor_path = resolve_weight_path("05_3Class_Severity", "best_cnn_extractor.pth")
-        severity_abmil_path = resolve_weight_path("05_3Class_Severity", "best_abmil_focal.pth")
+        severity_extractor_path = resolve_weight_path("3Class_Severity", "best_cnn_extractor.pth")
+        severity_abmil_path = resolve_weight_path("3Class_Severity", "best_abmil_focal.pth")
         severity_extractor = load_feature_extractor(severity_extractor_path, settings.DEVICE)
         severity_abmil = load_abmil_aggregator(severity_abmil_path, num_classes=3, device=settings.DEVICE)
         self.pipelines["severity"] = ModelPipeline(severity_extractor, severity_abmil, SEVERITY_CLASSES)

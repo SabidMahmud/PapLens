@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ModelType } from '@/lib/types';
 import { MAX_UPLOAD_MB, validateImageFile } from '@/lib/validation';
 
@@ -9,239 +9,204 @@ interface ImageUploaderProps {
   isLoading: boolean;
   selectedModel: ModelType;
   onModelChange: (model: ModelType) => void;
+  selectedFile: File | null;
+  previewUrl: string | null;
+  onFileChange: (file: File) => void;
 }
 
-export const ImageUploader: React.FC<ImageUploaderProps> = ({
+const TASKS: Array<{
+  value: ModelType;
+  index: string;
+  title: string;
+  summary: string;
+  output: string;
+}> = [
+  {
+    value: 'triage',
+    index: 'A',
+    title: 'Triage',
+    summary: 'Normal vs abnormal',
+    output: 'Two-class screening model',
+  },
+  {
+    value: 'severity',
+    index: 'B',
+    title: 'Severity grading',
+    summary: 'Normal vs low vs high grade',
+    output: 'Three-level lesion stratification',
+  },
+];
+
+export function ImageUploader({
   onAnalyze,
   isLoading,
   selectedModel,
   onModelChange,
-}) => {
-  const [dragActive, setDragActive] = useState<boolean>(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  selectedFile,
+  previewUrl,
+  onFileChange,
+}: ImageUploaderProps) {
+  const [dragActive, setDragActive] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((file: File) => {
-    setClientError(null);
+    if (isLoading) return;
     const validation = validateImageFile(file);
     if (!validation.isValid) {
-      setClientError(validation.error || 'Invalid file.');
+      setClientError(validation.error || 'The selected file cannot be used.');
       return;
     }
-
-    setSelectedFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
-  }, []);
-
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setDragActive(false);
-
-      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-        handleFile(e.dataTransfer.files[0]);
-      }
-    },
-    [handleFile]
-  );
-
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      e.preventDefault();
-      if (e.target.files && e.target.files[0]) {
-        handleFile(e.target.files[0]);
-      }
-    },
-    [handleFile]
-  );
-
-  const clearSelection = useCallback(() => {
-    setSelectedFile(null);
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
     setClientError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [previewUrl]);
+    onFileChange(file);
+  }, [isLoading, onFileChange]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile || isLoading) return;
-    onAnalyze(selectedFile, selectedModel);
-  };
+  const handleDrag = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isLoading) return;
+    if (event.type === 'dragleave' && event.currentTarget.contains(event.relatedTarget as Node)) return;
+    setDragActive(event.type === 'dragenter' || event.type === 'dragover');
+  }, [isLoading]);
+
+  const handleDrop = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  }, [handleFile]);
 
   return (
-    <div className="w-full bg-slate-900/60 rounded-2xl border border-slate-800 p-6 md:p-8 backdrop-blur-md shadow-xl">
-      {/* Model Selector Header */}
-      <div className="mb-6">
-        <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5">
-          Select Diagnostic Classification Framing
-        </label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => onModelChange('triage')}
-            className={`p-3.5 rounded-xl border text-left transition-all ${
-              selectedModel === 'triage'
-                ? 'bg-indigo-950/70 border-indigo-500/80 shadow-md shadow-indigo-950/50 text-white'
-                : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm">2-Class Clinical Triage</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                Flagship
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Normal (NILM) vs. Abnormal (ASC-US / LSIL / HSIL / SCC) • 95% Acc, 97% Sens
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onModelChange('severity')}
-            className={`p-3.5 rounded-xl border text-left transition-all ${
-              selectedModel === 'severity'
-                ? 'bg-indigo-950/70 border-indigo-500/80 shadow-md shadow-indigo-950/50 text-white'
-                : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-sm">3-Class Severity Grading</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                Grading
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Normal vs. Low-Grade vs. High-Grade • Matches colposcopy protocol
-            </p>
-          </button>
+    <section id="upload-field" className="border border-[#c7cac4] bg-[#fbfaf7]" aria-labelledby="new-analysis-title" aria-busy={isLoading}>
+      <div className="flex items-center justify-between border-b border-[#d9d8d1] px-5 py-4 sm:px-7">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xs text-[#0d6b62]">01</span>
+          <h2 id="new-analysis-title" className="text-sm font-bold text-[#17211f]">New field analysis</h2>
         </div>
+        <span className="hidden text-xs text-[#727b78] sm:block">JPEG or PNG · {MAX_UPLOAD_MB} MB maximum</span>
       </div>
 
-      {/* Upload Zone */}
-      <form onSubmit={handleSubmit}>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-          onChange={handleChange}
-          className="hidden"
-          id="fov-upload-input"
-        />
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (selectedFile && !isLoading) onAnalyze(selectedFile, selectedModel);
+        }}
+        className="grid lg:grid-cols-[minmax(0,1fr)_330px]"
+      >
+        <div className="flex flex-col p-5 sm:p-7">
+          <input
+            ref={fileInputRef}
+            id="fov-upload-input"
+            type="file"
+            aria-label="Upload microscopy image"
+            disabled={isLoading}
+            tabIndex={-1}
+            accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) handleFile(file);
+              event.target.value = '';
+            }}
+            className="sr-only"
+          />
 
-        {!selectedFile ? (
-          <div
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`relative flex flex-col items-center justify-center p-8 md:p-12 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
-              dragActive
-                ? 'border-indigo-400 bg-indigo-950/30'
-                : 'border-slate-750 bg-slate-950/30 hover:border-slate-600 hover:bg-slate-950/60'
-            }`}
-          >
-            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-4">
-              <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-            </div>
-            <p className="text-base font-semibold text-slate-200 text-center">
-              Click to upload or drag & drop a Pap smear slide image
-            </p>
-            <p className="text-xs text-slate-400 mt-1.5 text-center">
-              Microscopy FOV (approx. 4000×3000 px) • JPEG or PNG up to {MAX_UPLOAD_MB} MB
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-xl bg-slate-950/60 border border-slate-800">
-            {previewUrl && (
-              <div className="relative w-28 h-24 sm:w-32 sm:h-24 rounded-lg overflow-hidden border border-slate-750 flex-shrink-0 bg-black">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewUrl}
-                  alt="Selected slide preview"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-            <div className="flex-1 min-w-0 text-center sm:text-left">
-              <p className="text-sm font-semibold text-slate-200 truncate">{selectedFile.name}</p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • {selectedFile.type || 'image/jpeg'}
-              </p>
-              <div className="mt-2 flex items-center justify-center sm:justify-start gap-2">
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-950/70 text-emerald-300 border border-emerald-500/30">
-                  Ready for AB-MIL analysis
+          {!selectedFile ? (
+            <button
+              type="button"
+              disabled={isLoading}
+              aria-label="Choose a microscopy field image"
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`group grid min-h-[300px] w-full flex-1 place-items-center border border-dashed px-6 py-7 text-center transition-colors ${
+                dragActive
+                  ? 'border-[#0d6b62] bg-[#e4f0ed]'
+                  : 'border-[#aeb2ac] bg-[#f6f5f0] hover:border-[#0d6b62] hover:bg-[#eef3f0]'
+              }`}
+            >
+              <span className="block max-w-md">
+                <span className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#b9c5c1] bg-[#fbfaf7] text-[#0d6b62] transition-transform group-hover:-translate-y-1" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-6 w-6" strokeWidth="1.6">
+                    <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
+                  </svg>
                 </span>
+                <span className="font-display mt-5 block text-2xl text-[#17211f]">Add a microscopy field</span>
+                <span className="mt-2 block text-sm leading-6 text-[#65706c]">Drag an image here, or browse your device.</span>
+                <span className="mt-5 inline-block bg-[#0d6b62] px-5 py-3 text-xs font-bold text-white group-hover:bg-[#084f49]">Choose image <span aria-hidden="true">↗</span></span>
+                <span className="mt-3 block text-xs text-[#65706c]">JPEG or PNG · up to {MAX_UPLOAD_MB} MB</span>
+              </span>
+            </button>
+          ) : (
+            <div className="grid min-h-[300px] flex-1 gap-5 md:grid-cols-[minmax(220px,0.85fr)_1fr]">
+              <div className="viewer-checkerboard relative min-h-[240px] overflow-hidden border border-[#29332f]">
+                {previewUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewUrl} alt="Selected microscopy field" className="absolute inset-0 h-full w-full object-contain" />
+                )}
+                <span className="absolute bottom-3 left-3 bg-[#111715]/85 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-white">Input field</span>
+              </div>
+              <div className="flex min-w-0 flex-col justify-between border-y border-[#d9d8d1] py-5">
+                <div>
+                  <p className="quiet-label text-[#0d6b62]">{isLoading ? 'Analysis in progress' : 'Ready to analyze'}</p>
+                  <h3 title={selectedFile.name} className="mt-4 break-words text-lg font-bold text-[#17211f]">{selectedFile.name}</h3>
+                  <dl className="mt-5 grid grid-cols-2 gap-x-5 gap-y-4 text-xs">
+                    <div><dt className="text-[#7a827f]">File size</dt><dd className="mt-1 font-semibold text-[#26312e]">{(selectedFile.size / 1048576).toFixed(2)} MB</dd></div>
+                    <div><dt className="text-[#7a827f]">Format</dt><dd className="mt-1 font-semibold uppercase text-[#26312e]">{selectedFile.type.split('/')[1] || 'image'}</dd></div>
+                    <div className="col-span-2"><dt className="text-[#7a827f]">Protocol</dt><dd className="mt-1 font-semibold text-[#26312e]">{selectedModel === 'triage' ? '2-class clinical triage' : '3-class severity grading'}</dd></div>
+                  </dl>
+                </div>
+                <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+                  <button type="button" disabled={isLoading} onClick={() => fileInputRef.current?.click()} className="min-h-11 border border-[#aeb2ac] px-4 text-xs font-bold text-[#4e5855] transition-colors hover:border-[#17211f] hover:text-[#17211f] disabled:opacity-50">Replace image</button>
+                  <button type="submit" disabled={isLoading} className="min-h-11 flex-1 bg-[#0d6b62] px-5 text-xs font-bold text-white transition-colors hover:bg-[#084f49] disabled:opacity-60">{isLoading ? 'Analyzing…' : 'Run analysis →'}</button>
+                </div>
               </div>
             </div>
-            <div className="flex sm:flex-col gap-2 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={clearSelection}
-                disabled={isLoading}
-                className="flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-800 border border-slate-750 transition-colors disabled:opacity-50"
-              >
-                Change Image
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 sm:flex-none px-5 py-2.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    <span>Extracting Patches...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>Run Inference</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
+          )}
 
-        {clientError && (
-          <p className="mt-3 text-xs text-rose-400 flex items-center gap-1.5">
-            <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            {clientError}
-          </p>
-        )}
+          {clientError && <p role="alert" className="mt-3 border-l-2 border-[#a33d35] bg-[#f8e9e6] px-3 py-2 text-xs leading-5 text-[#84332d]">{clientError}</p>}
+        </div>
+
+        <aside className="border-t border-[#d9d8d1] bg-[#efeee8] p-5 sm:p-7 lg:border-l lg:border-t-0">
+          <fieldset disabled={isLoading} className="disabled:opacity-60">
+            <legend className="quiet-label text-[#65706c]">02 · Select protocol</legend>
+            <div className="mt-5 space-y-3">
+              {TASKS.map((task) => {
+                const selected = selectedModel === task.value;
+                return (
+                  <button
+                    key={task.value}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => onModelChange(task.value)}
+                    className={`w-full border p-4 text-left transition-colors ${selected ? 'border-[#0d6b62] bg-[#fbfaf7]' : 'border-[#d0d1cb] bg-transparent hover:border-[#8b918e]'}`}
+                  >
+                    <span className="flex items-start justify-between gap-3">
+                      <span>
+                        <span className="block text-sm font-bold text-[#17211f]">{task.title}</span>
+                        <span className="mt-1 block text-xs text-[#5f6965]">{task.summary}</span>
+                      </span>
+                      <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px] font-bold ${selected ? 'border-[#0d6b62] bg-[#0d6b62] text-white' : 'border-[#aeb2ac] text-[#65706c]'}`}>{task.index}</span>
+                    </span>
+                    <span className="mt-4 block border-t border-[#d9d8d1] pt-3 text-[11px] leading-4 text-[#7a827f]">{task.output}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <details className="group mt-5 border-t border-[#cfd0ca]">
+            <summary className="flex min-h-11 list-none items-center justify-between gap-2 pt-3 text-xs font-semibold text-[#65706c]">Recommended input <span aria-hidden="true" className="text-base group-open:rotate-45">+</span></summary>
+            <ul className="mt-2 space-y-2 text-xs leading-5 text-[#5f6965]">
+              <li>High-power conventional Pap smear FOV</li>
+              <li>Approximately 4000 × 3000 pixels</li>
+              <li>In-focus JPEG or PNG</li>
+            </ul>
+          </details>
+        </aside>
       </form>
-    </div>
+    </section>
   );
-};
+}
