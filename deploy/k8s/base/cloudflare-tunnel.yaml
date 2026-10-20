@@ -1,0 +1,57 @@
+# Cloudflare Tunnel Configuration & Ingress Reference for PapLens
+#
+# Option A (Recommended for Existing Tunnel):
+# If you already have a Cloudflare Tunnel daemon running in your cluster or on host,
+# add this rule to your tunnel config.yml ingress rules before the fallback rule:
+#
+#   ingress:
+#     - hostname: api-paplens.yourdomain.com
+#       service: http://paplens-backend.paplens.svc.cluster.local:7860
+#     - service: http_status:404
+#
+# Option B (Dedicated in-namespace Cloudflare Tunnel Pod):
+# If you prefer running a dedicated cloudflared instance in the paplens namespace:
+#
+# 1. Create secret with your Cloudflare Tunnel Token:
+#    kubectl -n paplens create secret generic cloudflare-tunnel-token \
+#      --from-literal=token="<YOUR_CLOUDFLARE_TUNNEL_TOKEN>"
+#
+# 2. Uncomment the Deployment below:
+#
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: cloudflared-paplens
+#   namespace: paplens
+#   labels:
+#     app: cloudflared
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: cloudflared
+#   template:
+#     metadata:
+#       labels:
+#         app: cloudflared
+#     spec:
+#       containers:
+#       - name: cloudflared
+#         image: cloudflare/cloudflared:latest
+#         args:
+#         - tunnel
+#         - --no-autoupdate
+#         - run
+#         env:
+#         - name: TUNNEL_TOKEN
+#           valueFrom:
+#             secretKeyRef:
+#               name: cloudflare-tunnel-token
+#               key: token
+#         resources:
+#           requests:
+#             cpu: "50m"
+#             memory: "64Mi"
+#           limits:
+#             cpu: "200m"
+#             memory: "128Mi"

@@ -16,7 +16,9 @@ Interpretable cervical cytology classification with attention-based multiple ins
 
 - [Overview](#overview)
 - [Methodology and Model Pipeline](#methodology-and-model-pipeline)
+- [Tech Stack](#tech-stack)
 - [System Architecture](#system-architecture)
+- [Subsystem Documentation](#subsystem-documentation)
 - [Repository Structure](#repository-structure)
 - [Empirical Benchmarks](#empirical-benchmarks)
 - [Local Development](#local-development)
@@ -26,11 +28,8 @@ Interpretable cervical cytology classification with attention-based multiple ins
   - [Test Suites and Parity Verification](#test-suites-and-parity-verification)
 - [Container Execution](#container-execution)
 - [API Specification](#api-specification)
-- [Production Deployment](#production-deployment)
-  - [Deployment Order and CORS](#deployment-order-and-cors)
-  - [Hugging Face Spaces](#hugging-face-spaces)
-  - [Vercel](#vercel)
-  - [Kubernetes and k3s Self-Hosting](#kubernetes-and-k3s-self-hosting)
+- [Production Dual Deployment](#production-dual-deployment)
+  - [Deployment Sequence](#deployment-sequence)
 - [Known Limitations](#known-limitations)
 - [License](#license)
 
@@ -41,6 +40,16 @@ Interpretable cervical cytology classification with attention-based multiple ins
 PapLens is a decoupled full-stack machine learning application designed to deploy an Attention-Based Multiple Instance Learning (AB-MIL) model for cervical cytology screening. The system processes conventional Pap-smear Field-of-View (FOV) microscopy images (typically 4000 x 3000 pixels) and provides both slide-level classification and patch-level spatial attention heatmaps.
 
 The primary goal of the application is explainability: alongside a categorical prediction, the interface visualizes the exact cellular clusters that guided the attention network's output, allowing researchers to evaluate model focus against cytopathological criteria.
+
+<!-- Interface Screenshots -->
+![PapLens workspace — upload and protocol selection](assets/site1-landing.png)
+*Figure 1: Workspace landing view. Upload a microscopy field (drag-and-drop or browse), select Triage (2-class) or Severity grading (3-class), and run inference. The header badge shows live backend status — k3s cluster or Hugging Face Spaces fallback.*
+
+![Reference fields and method pipeline](assets/site2.png)
+*Figure 2: Reference fields panel showing all five Bethesda-class sample images (NILM, ASC-US, LSIL, HSIL, SCC) for one-click staging. Below, the method note documents the four inference stages: Tile, Filter, Encode, and Attend.*
+
+![Evidence map — attention heatmap viewer](assets/evidenceheatmap.png)
+*Figure 3: Evidence map viewer (Overlay mode). Warmer colors indicate higher model attention. Numbered bounding boxes mark the top-5 highest-attention patches. The blend slider controls heatmap opacity. Original / Overlay / Compare view modes and one-click PNG export are available.*
 
 ---
 
@@ -69,56 +78,150 @@ The system exposes two distinct evaluation tasks via an interface selector:
 - **2-Class Clinical Triage (Flagship):** Normal (Negative for Intraepithelial Lesion or Malignancy - NILM) vs. Abnormal (Epithelial Cell Abnormalities).
 - **3-Class Severity Grading:** Normal vs. Low-Grade Lesion (LSIL) vs. High-Grade Lesion / Carcinoma (HSIL / SCC).
 
+## Tech Stack
+
+### Deep Learning and Numerical Inference
+- **PyTorch (v2.14+ CPU):** Feedforward execution, tensor manipulation, and gradient-free inference optimized for multi-core CPUs.
+- **Torchvision (v0.29+ CPU):** ResNet-50 feature extractor truncated prior to the final classification layer, yielding 2048-dimensional embeddings per patch.
+- **Attention-Based Deep MIL:** Gated Attention network (Ilse et al.) implementing learned instance aggregation and interpretable spatial weighting.
+- **OpenCV Headless (v5.0+):** Sliding-window patch extraction, spatial count-mask accumulation, and JET colormap rendering for attention heatmaps.
+- **Pillow & NumPy (v2.x):** Image decoding, spatial validation, luminance-based background thresholding, and numerical array operations.
+
+### Backend Service and API
+- **FastAPI (v0.143+):** Asynchronous Python web framework serving OpenAPI-compliant prediction and health check endpoints.
+- **Uvicorn (v0.54+):** Standard ASGI production web server.
+- **Pydantic V2 & Pydantic-Settings:** Request validation, response serialization, and environment configuration management.
+- **Hugging Face Hub Python SDK (`huggingface_hub`):** Hybrid model weight resolution, downloading PyTorch checkpoints into local volumes on startup.
+- **Pytest & HTTPX:** Test suite verifying API contracts, payload boundaries, corrupt file rejection, and CORS enforcement.
+
+### Frontend Client and UI
+- **Next.js 16 (App Router):** Modern React 19 framework using Turbopack compilation and edge-optimized static page generation.
+- **TypeScript:** Strict type safety mirroring backend Pydantic schemas without loose `any` types.
+- **Tailwind CSS v4:** Utility-first CSS styling and layout primitives.
+- **Client Failover Resolver (`lib/api.ts`):** Direct browser-to-backend communication bypassing serverless payload limits, featuring proactive health probes and single-retry failover.
+- **Vitest & React Testing Library:** Unit testing for client failover resolution, error states, and UI components.
+
+### Infrastructure, GitOps, and Edge
+- **Primary Backend Hosting:** Lightweight Kubernetes (`k3s`) cluster running single-replica non-root containers with read-only root filesystems.
+- **GitOps Reconciliation:** Flux CD v2 automatically synchronizing cluster state from Git (`deploy/flux/` and `deploy/k8s/overlays/prod/`).
+- **Edge Ingress:** Cloudflare Tunnel (`cloudflared`) routing external HTTPS traffic securely to the cluster with zero open inbound ports.
+- **Failsafe Backend Hosting:** Hugging Face Spaces (Docker CPU SDK, port 7860) running the identical container image and inference logic.
+- **Frontend Hosting:** Vercel edge deployment with global CDN delivery.
+- **CI/CD & Registry:** GitHub Actions (`.github/workflows/backend-image.yml`) building and publishing images to GitHub Container Registry (GHCR).
+
 ---
 
 ## System Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Client ["Client Browser (Next.js Application)"]
-        UI["PapLens Web Interface (Dark Mode)"]
-        Uploader["File Validation & Upload Component"]
-        StatusHook["useBackendStatus Polling Hook"]
-        HeatmapUI["Interactive Heatmap Viewer & Opacity Slider"]
+    subgraph ClientLayer ["Client Browser (Next.js Application)"]
+        UI["PapLens Web Interface"]
+        FailoverResolver["Failover Resolver (lib/api.ts)"]
+        Uploader["File Validation & Direct Upload"]
+        HeatmapUI["Heatmap Viewer & Opacity Blend Slider"]
     end
 
-    subgraph Vercel ["Frontend Hosting (Vercel)"]
-        NextStatic["Static HTML / App Router Assets"]
+    subgraph FrontendHosting ["Frontend Hosting (Vercel)"]
+        VercelCDN["Vercel Edge Network (HTTPS)"]
     end
 
-    subgraph BackendAPI ["Backend Service (FastAPI / Docker / k3s)"]
-        HealthEndpoint["GET /health"]
-        PredictEndpoint["POST /predict (Direct Browser Upload)"]
-        PreprocessModule["Preprocessing: 1280px Window + Luminance Filter"]
-        BackboneModule["ResNet-50 Feature Extractor (2048-d)"]
-        AttentionModule["Gated Attention Module"]
-        ClassifierModule["Linear Classifier Head"]
-        HeatmapModule["Spatial Accumulator & JET Colormap Renderer"]
-        ModelManager["ModelManager (Hybrid Local / Hugging Face Hub Resolver)"]
+    subgraph PrimaryBackend ["Primary Backend (k3s Cluster)"]
+        CFTunnel["Cloudflare Tunnel (cloudflared Ingress)"]
+        K8sService["k3s ClusterIP Service (Port 7860)"]
+        K8sPod["Backend Pod (1 Replica, Non-Root, Read-Only Root)"]
+        K8sCORS["CORS Middleware (ALLOWED_ORIGINS)"]
+        K8sValidation["Server-Side Validation (10 MB Limit, JPEG/PNG)"]
+        K8sModelManager["ModelManager (Startup Weight Resolver)"]
+        K8sBackbone["ResNet-50 Feature Extractor (2048-d)"]
+        K8sAttention["Gated Attention Module"]
+        K8sClassifier["Linear Classifier Head"]
+        K8sHeatmap["Spatial Accumulator & JET Colormap Renderer"]
     end
 
+    subgraph FallbackBackend ["Fallback Backend (Hugging Face Spaces)"]
+        HFGateway["Hugging Face Edge Gateway (HTTPS)"]
+        HFContainer["Docker Container (Port 7860, appuser:1000)"]
+        HFCORS["CORS Middleware (ALLOWED_ORIGINS)"]
+        HFValidation["Server-Side Validation (10 MB Limit, JPEG/PNG)"]
+        HFModelManager["ModelManager (Startup Weight Resolver)"]
+        HFBackbone["ResNet-50 Feature Extractor (2048-d)"]
+        HFAttention["Gated Attention Module"]
+        HFClassifier["Linear Classifier Head"]
+        HFHeatmap["Spatial Accumulator & JET Colormap Renderer"]
+    end
+
+    subgraph ModelStorage ["Model Weights Distribution"]
+        HFHub["Hugging Face Hub Model Repository (Repo ID / Secrets)"]
+    end
+
+    subgraph GitOpsDeploy ["GitOps & CI Automation"]
+        GHCR["GitHub Container Registry (ghcr.io)"]
+        FluxCD["Flux CD v2 (GitRepository & Kustomization)"]
+    end
+
+    VercelCDN -.-> UI
     UI --> Uploader
-    Uploader -- "Direct multipart/form-data upload" --> PredictEndpoint
-    StatusHook -- "GET /health (exponential backoff)" --> HealthEndpoint
-    NextStatic -.-> UI
+    Uploader --> FailoverResolver
 
-    PredictEndpoint --> PreprocessModule
-    PreprocessModule --> BackboneModule
-    BackboneModule --> AttentionModule
-    AttentionModule --> ClassifierModule
-    AttentionModule --> HeatmapModule
-    ClassifierModule --> PredictEndpoint
-    HeatmapModule --> PredictEndpoint
-    PredictEndpoint -- "JSON: Predictions + Base64 PNG Overlays" --> HeatmapUI
-    ModelManager -.-> BackboneModule
-    ModelManager -.-> AttentionModule
+    %% Primary execution flow
+    FailoverResolver -- "1. Probe /health (~4s) & Direct multipart upload" --> CFTunnel
+    CFTunnel --> K8sService
+    K8sService --> K8sPod
+    K8sPod --> K8sCORS
+    K8sCORS --> K8sValidation
+    K8sValidation --> K8sModelManager
+    K8sModelManager --> K8sBackbone
+    K8sModelManager --> K8sAttention
+    K8sModelManager --> K8sClassifier
+    K8sBackbone --> K8sAttention
+    K8sAttention --> K8sClassifier
+    K8sAttention --> K8sHeatmap
+    K8sClassifier & K8sHeatmap --> HeatmapUI
+
+    %% Failover execution flow
+    FailoverResolver -. "2. Failover on timeout or 5xx/network error" .-> HFGateway
+    HFGateway --> HFContainer
+    HFContainer --> HFCORS
+    HFCORS --> HFValidation
+    HFValidation --> HFModelManager
+    HFModelManager --> HFBackbone
+    HFModelManager --> HFAttention
+    HFModelManager --> HFClassifier
+    HFBackbone --> HFAttention
+    HFAttention --> HFClassifier
+    HFAttention --> HFHeatmap
+    HFClassifier & HFHeatmap --> HeatmapUI
+
+    %% Weights distribution
+    HFHub -- "Startup download to emptyDir volume" --> K8sModelManager
+    HFHub -- "Startup container download & cache" --> HFModelManager
+
+    %% GitOps reconciliation
+    GHCR -- "Container image: latest & sha-xxxxxxx" --> K8sPod
+    FluxCD -- "Reconciles deploy/k8s/overlays/prod" --> K8sPod
 ```
 
 ### Architectural Decisions
 
-- **Direct Browser Uploads:** Image payloads are sent directly from the client browser to the backend API (`NEXT_PUBLIC_API_URL`). Uploads are not proxied through Next.js serverless routes, avoiding Vercel's 4.5 MB request body limit for serverless functions.
-- **Downscaled Base64 Overlays:** While inference runs on full-resolution 1280 x 1280 pixel image crops, the resulting attention overlay and reference image are downscaled to a maximum dimension of 1024 pixels for network transport (~350 KB base64 payload instead of 20 MB uncompressed image data).
-- **Hybrid Weight Resolution:** The backend first attempts to load PyTorch weights from the local filesystem (`backend/weights/`). If weights are absent (e.g. in minimal container builds), it falls back to downloading them from a designated Hugging Face Hub repository (`HF_REPO_ID`).
+- **Direct Browser Uploads:** Image payloads are sent directly from the client browser to the active backend API (`NEXT_PUBLIC_API_URL_PRIMARY` or `NEXT_PUBLIC_API_URL_FALLBACK`). Uploads are never proxied through Next.js serverless routes, completely avoiding Vercel's 4.5 MB serverless request body limits.
+- **Client-Side Automated Failover:** `lib/api.ts` probes `/health` on the primary k3s cluster with a short 4-second timeout. If the cluster is unreachable or times out, it switches to the Hugging Face Space fallback with waking backoff. If an in-flight `/predict` request fails with a network error or 5xx response, it retries once on the alternate backend.
+- **Single Backend Container Image:** Both the primary k3s deployment and the Hugging Face Space run the exact same `backend/Dockerfile` image on port 7860 as non-root UID 1000.
+- **Hybrid Weight Resolution:** The backend first attempts to load PyTorch weights from the local filesystem (`backend/weights/`). If weights are absent, it downloads them from a private or public Hugging Face Hub repository (`HF_REPO_ID`) into an ephemeral volume. Weights are never committed to plain Git or baked into the Docker image.
+- **Downscaled Base64 Overlays:** While inference evaluates full-resolution 1280 x 1280 pixel crops, the spatial attention overlay and reference image are downscaled to a maximum dimension of 1024 pixels for network transport (~350 KB base64 payload instead of 20 MB uncompressed image data).
+
+---
+
+## Subsystem Documentation
+
+The PapLens repository is partitioned into decoupled subsystems, each accompanied by dedicated documentation:
+
+- **Backend API Documentation:** [`backend/README.md`](backend/README.md)  
+  Covers the FastAPI service, PyTorch model loader, CPU optimizations, hybrid weight resolver (`huggingface_hub`), environment variables, local Docker execution, and instructions for deploying the Hugging Face Spaces failsafe backend.
+- **Frontend Web Client Documentation:** [`frontend/README.md`](frontend/README.md)  
+  Covers the Next.js 16 App Router interface, Tailwind CSS v4 styling, client failover resolver implementation (`lib/api.ts`), dual-endpoint configuration, and Vercel edge deployment.
+- **Production Deployment & GitOps Guide:** [`deploy/README.md`](deploy/README.md)  
+  Comprehensive operational guide detailing the 7-step deployment sequence across the primary k3s cluster (via Flux CD v2 GitOps and Cloudflare Tunnel ingress) and the Hugging Face Space failsafe, plus failover verification steps.
 
 ---
 
@@ -126,7 +229,7 @@ flowchart TD
 
 ```
 paplens/
-├── backend/
+├── backend/                      # FastAPI inference service -> see backend/README.md
 │   ├── app/
 │   │   ├── __init__.py
 │   │   ├── config.py             # Configuration and environment variables via Pydantic Settings
@@ -137,8 +240,8 @@ paplens/
 │   │   ├── preprocess.py         # Image decoding, sliding-window patch extractor, background filter
 │   │   └── schemas.py            # Pydantic V2 schemas for prediction and error responses
 │   ├── weights/                  # Directory for model weight files (gitignored)
-│   │   ├── 04_2Class_Triage/
-│   │   └── 05_3Class_Severity/
+│   │   ├── 2Class_Triage/
+│   │   └── 3Class_Severity/
 │   ├── scripts/
 │   │   └── parity_check.py       # Verification script comparing wrapper output with thesis models
 │   ├── tests/                    # Pytest test suite (11 unit and integration tests)
@@ -148,38 +251,36 @@ paplens/
 │   │   └── test_validation.py
 │   ├── Dockerfile                # Production Dockerfile (python:3.12-slim, non-root user, CPU torch)
 │   ├── requirements.txt          # Pinned Python package dependencies
-│   └── README.md                 # Hugging Face Spaces deployment documentation
-├── frontend/
+│   └── README.md                 # Backend documentation -> backend/README.md
+├── frontend/                     # Next.js web application -> see frontend/README.md
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── globals.css       # Tailwind CSS v4 styles and dark mode color variables
+│   │   │   ├── globals.css       # Tailwind CSS v4 styles and theme variables
 │   │   │   ├── layout.tsx        # Root HTML layout and metadata configuration
 │   │   │   └── page.tsx          # Single-page dashboard layout
-│   │   ├── components/
-│   │   │   ├── Disclaimer.tsx    # Research and regulatory disclaimer component
-│   │   │   ├── ErrorBanner.tsx   # Dismissible error display
-│   │   │   ├── HeatmapViewer.tsx # Side-by-side view, opacity blend slider, top patch bounding boxes
-│   │   │   ├── HowItWorks.tsx    # Model architecture summary and dataset attribution text
-│   │   │   ├── ImageUploader.tsx # Drag-and-drop input, file validation, model type selector
-│   │   │   ├── ResultCard.tsx    # Diagnostic classification, confidence metrics, probability breakdown
-│   │   │   ├── SampleImages.tsx  # Pre-configured test sample selector
-│   │   │   └── ServerStatus.tsx  # Health pill indicator (checking, waking, online, offline)
+│   │   ├── components/           # UI components (Viewer, Uploader, Results, Status, Disclaimer)
 │   │   ├── hooks/
 │   │   │   └── useBackendStatus.ts # Server health polling hook with exponential backoff
 │   │   ├── lib/
-│   │   │   ├── api.ts            # Typed API client with AbortController timeout handling
+│   │   │   ├── api.ts            # Client failover resolver and typed API client
 │   │   │   ├── types.ts          # TypeScript interfaces mirroring backend Pydantic schemas
 │   │   │   └── validation.ts     # Client-side file type and file size validation
-│   │   └── tests/
-│   │       ├── api.test.ts       # Vitest tests for API error and timeout scenarios
-│   │       ├── ResultCard.test.tsx # React Testing Library component tests
-│   │       └── setup.ts          # Vitest environment setup and jest-dom extensions
+│   │   └── tests/                # Vitest test suite (12 unit and integration tests)
 │   ├── public/
 │   │   └── samples/              # Directory for static sample images (.gitkeep)
 │   ├── package.json              # Next.js 16, React 19, Tailwind CSS v4, Vitest
 │   ├── tsconfig.json             # TypeScript compiler settings
 │   ├── vitest.config.ts          # Vitest testing configuration
-│   └── README.md                 # Frontend deployment documentation
+│   └── README.md                 # Frontend documentation -> frontend/README.md
+├── deploy/                       # Kubernetes, GitOps, and Ingress manifests -> see deploy/README.md
+│   ├── k8s/
+│   │   ├── base/                 # Base k8s Deployment, Service, ConfigMap, Secrets, Cloudflare Tunnel
+│   │   └── overlays/prod/        # Production overlay with pinned image SHA tag
+│   ├── flux/                     # Flux CD v2 GitRepository and Kustomization manifests
+│   └── README.md                 # Deployment & failover verification guide -> deploy/README.md
+├── .github/
+│   └── workflows/
+│       └── backend-image.yml     # Automated GHCR container build and push workflow
 ├── .gitignore                    # Excludes virtual environments, cache, build artifacts, weights
 └── README.md                     # Root project documentation
 ```
@@ -236,8 +337,8 @@ The following benchmarks were measured on a full-resolution 4000 x 3000 pixel FO
    ```
 
 4. Verify model weights exist in `backend/weights/`:
-   - `backend/weights/04_2Class_Triage/04_MIL_ResNet50_Final_2Class_Triage_StateDict.pt`
-   - `backend/weights/05_3Class_Severity/05_MIL_ResNet50_Final_3Class_Severity_StateDict.pt`
+   - `backend/weights/2Class_Triage/best_cnn_extractor.pth` & `best_abmil_focal.pth`
+   - `backend/weights/3Class_Severity/best_cnn_extractor.pth` & `best_abmil_focal.pth`
 
 5. Start the FastAPI development server:
    ```bash
@@ -245,6 +346,8 @@ The following benchmarks were measured on a full-resolution 4000 x 3000 pixel FO
    ```
 
 The API will be available at `http://localhost:7860`. Interactive OpenAPI documentation is accessible at `http://localhost:7860/docs`.
+
+For detailed endpoint specifications, configuration tables, and standalone Docker execution, see the [Backend Documentation](backend/README.md).
 
 ---
 
@@ -266,7 +369,8 @@ The API will be available at `http://localhost:7860`. Interactive OpenAPI docume
    ```
    Ensure `.env.local` contains:
    ```env
-   NEXT_PUBLIC_API_URL=http://localhost:7860
+   NEXT_PUBLIC_API_URL_PRIMARY=http://localhost:7860
+   NEXT_PUBLIC_API_URL_FALLBACK=https://sabidmahmud-paplens.hf.space
    ```
 
 4. Start the Next.js development server:
@@ -275,6 +379,8 @@ The API will be available at `http://localhost:7860`. Interactive OpenAPI docume
    ```
 
 The web application will be accessible at `http://localhost:3000`.
+
+For component structure, state management, and Vercel hosting guidelines, see the [Frontend Documentation](frontend/README.md).
 
 ---
 
@@ -291,7 +397,7 @@ pytest -v
 Expected result: 11 passing tests.
 
 #### Numerical Parity Gate
-The parity script processes real slide images through both the original research inference logic and the production wrapper, asserting equivalence of probabilities and attention weights within a tolerance of $10^{-6}$:
+The parity script verifies numerical equivalence between the research model evaluation and production wrapper logic:
 ```bash
 cd backend
 source .venv/bin/activate
@@ -299,13 +405,13 @@ python scripts/parity_check.py
 ```
 
 #### Frontend Unit Tests (Vitest)
-The frontend test suite verifies client API error handling, network timeouts, and component rendering:
+The frontend test suite verifies client failover resolver scenarios (primary healthy, fallback healthy, both down, retry on 5xx/network error), file validation, and UI component rendering:
 ```bash
 cd frontend
 npm test
 ```
 
-Expected result: 7 passing tests.
+Expected result: 12 passing tests.
 
 #### Production Build Verification
 To ensure TypeScript types, Tailwind stylesheets, and page pre-renders compile cleanly:
@@ -346,10 +452,12 @@ Returns the operational status of the service and confirms that model weights ar
 **Response (200 OK):**
 ```json
 {
-  "status": "healthy",
-  "model_loaded": true,
+  "status": "ok",
+  "models_loaded": true,
   "available_models": ["triage", "severity"],
-  "uptime_seconds": 124.5
+  "device": "cpu",
+  "torch_threads": 4,
+  "version": "1.0.0"
 }
 ```
 
@@ -394,10 +502,20 @@ curl -X POST "http://localhost:7860/predict?model_type=triage" \
   "top_patches": [
     {
       "rank": 1,
-      "attention_weight": 0.1428,
-      "normalized_attention": 1.0,
-      "box_original": [1280, 640, 2560, 1920],
-      "box_display": [327, 163, 655, 491]
+      "attention_score": 0.1428,
+      "raw_attention": 0.0892,
+      "box": {
+        "x": 1280,
+        "y": 640,
+        "width": 1280,
+        "height": 1280
+      },
+      "box_display": {
+        "x": 327,
+        "y": 163,
+        "width": 327,
+        "height": 327
+      }
     }
   ]
 }
@@ -405,129 +523,49 @@ curl -X POST "http://localhost:7860/predict?model_type=triage" \
 
 ---
 
-## Production Deployment
+## Production Dual Deployment
 
-### Deployment Order and CORS
+PapLens uses a dual-deployment topology designed for zero-downtime availability and automated client failover:
 
-To avoid cross-origin resource sharing (CORS) failures or mixed-content browser blocking:
+- **Primary Backend:** Self-hosted on a `k3s` Kubernetes cluster managed declaratively via **Flux CD v2** GitOps and securely exposed over a **Cloudflare Tunnel** (`cloudflared`) with zero open inbound ports.
+- **Failsafe Backend:** Hosted on **Hugging Face Spaces** (Docker CPU SDK, port 7860) running the identical container image and inference pipeline.
+- **Frontend:** Hosted on **Vercel** (Next.js 16 App Router) with client-side failover resolution implemented in `lib/api.ts`.
+- **Model Weights Distribution:** PyTorch checkpoint weights are stored in a Hugging Face Hub model repository and downloaded at container startup into an ephemeral volume (`emptyDir` on k3s, local cache on Spaces). Weights are never committed to Git or baked into the Docker image.
 
-1. **Deploy the Backend First:**  
-   Deploy the backend service to Hugging Face Spaces or a Kubernetes cluster. Note the assigned public HTTPS URL (e.g. `https://username-paplens.hf.space`).
-2. **Deploy the Frontend to Vercel:**  
-   Provide the backend URL as the environment variable `NEXT_PUBLIC_API_URL`. Note your assigned Vercel production domain (e.g. `https://paplens.vercel.app`).
-3. **Configure Backend CORS Origins:**  
-   Update the backend's `ALLOWED_ORIGINS` environment variable to include the Vercel domain:
+For full Kubernetes manifests, Kustomize configurations, Cloudflare Tunnel setup, and Flux CD manifests, see [`deploy/README.md`](deploy/README.md).
+
+### Deployment Sequence
+
+Deploy services in the following order to ensure seamless SSL termination and eliminate CORS rejections:
+
+1. **Build and Publish Container Image:**  
+   GitHub Actions workflow (`.github/workflows/backend-image.yml`) builds and publishes `ghcr.io/<username>/paplens-backend` tagged with `latest` and `sha-<git-commit-hash>`.
+2. **Deploy to k3s via Flux CD:**  
+   Flux reconciles `./deploy/k8s/overlays/prod` against the cluster, deploying the backend Pod, ClusterIP Service, and Cloudflare Tunnel sidecar/deployment.
+3. **Verify External HTTPS Health:**  
+   Confirm public accessibility over the Cloudflare Tunnel hostname:
+   ```bash
+   curl -i https://api-paplens.yourdomain.com/health
    ```
+4. **Deploy Hugging Face Space Failsafe:**  
+   Push `backend/` to your Hugging Face Space. Set `HF_REPO_ID` and `HF_TOKEN` in Space secrets.
+5. **Configure CORS on Both Backends:**  
+   Set `ALLOWED_ORIGINS` on both the k3s ConfigMap and Hugging Face Space settings to your Vercel production domain:
+   ```env
    ALLOWED_ORIGINS=https://paplens.vercel.app,http://localhost:3000
    ```
-4. **HTTPS Requirement:**  
-   Modern web browsers block unencrypted HTTP requests initiated from an HTTPS origin (Mixed Content policy). Both frontend and backend must be served over HTTPS.
-
----
-
-### Hugging Face Spaces
-
-1. Create a new Space at `https://huggingface.co/new-space`.
-   - Name: `paplens`
-   - SDK: **Docker**
-   - Hardware: **CPU Basic (Free)**
-2. Push the backend directory:
-   ```bash
-   cd backend
-   git init
-   git remote add space https://huggingface.co/spaces/<your-username>/paplens
-   git add .
-   git commit -m "Deploy PapLens inference service"
-   git push space main
+6. **Deploy Frontend to Vercel:**  
+   Import `frontend` into Vercel and define:
+   ```env
+   NEXT_PUBLIC_API_URL_PRIMARY=https://api-paplens.yourdomain.com
+   NEXT_PUBLIC_API_URL_FALLBACK=https://<username>-paplens.hf.space
    ```
-3. In the Space **Settings > Variables and secrets**, add:
-   - Key: `ALLOWED_ORIGINS`
-   - Value: `https://<your-vercel-domain>.vercel.app,http://localhost:3000`
-
----
-
-### Vercel
-
-1. In the Vercel dashboard, import the repository and specify the **Root Directory** as `frontend`.
-2. In the project settings, configure the environment variable:
-   - `NEXT_PUBLIC_API_URL` = `https://<your-username>-paplens.hf.space`
-3. Deploy. The Next.js application will compile static assets and execute without serverless proxy overhead.
-
----
-
-### Kubernetes and k3s Self-Hosting
-
-For self-hosting on a local or production k3s cluster, use the following manifest:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: paplens-backend
-  namespace: default
-  labels:
-    app: paplens-backend
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: paplens-backend
-  template:
-    metadata:
-      labels:
-        app: paplens-backend
-    spec:
-      containers:
-      - name: backend
-        image: <your-registry>/paplens-backend:latest
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 7860
-        env:
-        - name: ALLOWED_ORIGINS
-          value: "https://paplens.yourdomain.com,http://localhost:3000"
-        - name: PORT
-          value: "7860"
-        - name: TORCH_NUM_THREADS
-          value: "4"
-        resources:
-          requests:
-            cpu: "1000m"
-            memory: "1Gi"
-          limits:
-            cpu: "2000m"
-            memory: "2Gi"
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 7860
-          initialDelaySeconds: 10
-          periodSeconds: 10
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 7860
-          initialDelaySeconds: 15
-          periodSeconds: 20
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: paplens-backend-service
-  namespace: default
-spec:
-  type: ClusterIP
-  selector:
-    app: paplens-backend
-  ports:
-  - port: 7860
-    targetPort: 7860
-```
-
-Apply the deployment:
-```bash
-kubectl apply -f paplens-backend.yaml
-```
+7. **Test Automated Failover:**  
+   Scale the k3s Deployment to 0 replicas:
+   ```bash
+   kubectl scale deployment/paplens-backend --replicas=0 -n paplens
+   ```
+   Refresh the web interface: the status badge switches to `Served by: Hugging Face Spaces (fallback)` and inferences continue uninterrupted. Scale the deployment back to 1 replica to restore primary routing.
 
 ---
 

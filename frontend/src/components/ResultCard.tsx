@@ -1,96 +1,79 @@
-'use client';
-
-import React from 'react';
 import { PredictionResponse } from '@/lib/types';
 
-interface ResultCardProps {
-  result: PredictionResponse;
+interface ResultCardProps { result: PredictionResponse; }
+
+function displayClass(value: string) {
+  return value.replaceAll('_', ' ');
 }
 
-export const ResultCard: React.FC<ResultCardProps> = ({ result }) => {
+export function ResultCard({ result }: ResultCardProps) {
   const isNormal = result.predicted_class === 'Normal';
-  const isHighGrade = result.predicted_class === 'High_Grade' || result.predicted_class === 'Abnormal';
-
-  const badgeColor = isNormal
-    ? 'bg-emerald-500/10 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-    : isHighGrade
-    ? 'bg-rose-500/10 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-500/30'
-    : 'bg-amber-500/10 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-500/30';
+  const isIntermediate = result.predicted_class === 'Low_Grade';
+  const accent = isNormal ? '#0d6b62' : isIntermediate ? '#a66d1d' : '#a33d35';
+  const tint = isNormal ? '#e4f0ed' : isIntermediate ? '#f6edda' : '#f8e9e6';
 
   return (
-    <div className="w-full bg-white/80 dark:bg-slate-900/70 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 backdrop-blur-md shadow-xl animate-in fade-in duration-300 transition-colors">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800/80">
-        <div>
-          <span className="text-[11px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400">
-            Slide Classification Result ({result.model_type === 'triage' ? '2-Class Triage' : '3-Class Severity'})
-          </span>
-          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              {result.predicted_class.replace('_', ' ')}
-            </h2>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${badgeColor}`}>
-              {(result.confidence * 100).toFixed(1)}% Confidence
+    <section className="overflow-hidden border border-[#c7cac4] bg-[#fbfaf7]" aria-labelledby="classification-heading">
+      <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(360px,1.05fr)]">
+        <div className="relative p-6 sm:p-9" style={{ backgroundColor: tint }}>
+          <span className="absolute inset-y-0 left-0 w-1.5" style={{ backgroundColor: accent }} aria-hidden="true" />
+          <p className="quiet-label text-[#65706c]">Model classification</p>
+          <h2 id="classification-heading" className="font-display mt-5 text-5xl leading-none tracking-[-0.035em] text-[#17211f] sm:text-6xl">
+            {displayClass(result.predicted_class)}
+          </h2>
+          <p className="mt-4 max-w-lg text-sm leading-6 text-[#4f5a56]">{result.display_name}</p>
+          <div className="mt-8 inline-flex items-baseline gap-2 border-t pt-4" style={{ borderColor: accent }}>
+            <span className="sr-only">{(result.confidence * 100).toFixed(1)}% Confidence</span>
+            <strong aria-hidden="true" className="font-display text-3xl text-[#17211f]">{(result.confidence * 100).toFixed(1)}<span>%</span></strong>
+            <span aria-hidden="true" className="text-xs font-bold uppercase tracking-[0.1em] text-[#58635f]">Confidence</span>
+          </div>
+        </div>
+
+        <div className="p-6 sm:p-9">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="quiet-label text-[#65706c]">Class distribution</p>
+              <p className="mt-2 text-xs leading-5 text-[#7a827f]">Relative model output; not a calibrated clinical risk score.</p>
+            </div>
+            <span className="border border-[#cfd0ca] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#65706c]">
+              {result.model_type === 'triage' ? '2 class' : '3 class'}
             </span>
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{result.display_name}</p>
-        </div>
 
-        {/* Telemetry metadata */}
-        <div className="flex sm:flex-col items-start sm:items-end gap-3 sm:gap-1 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/40 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Inference: <strong className="text-slate-800 dark:text-slate-200">{result.inference_time_ms} ms</strong></span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-            <span>Patches: <strong className="text-slate-800 dark:text-slate-200">{result.num_patches} foreground</strong></span>
+          <div className="mt-7 space-y-5">
+            {Object.entries(result.probabilities).map(([name, probability]) => {
+              const winner = name === result.predicted_class;
+              const percentage = (probability * 100).toFixed(1);
+              return (
+                <div key={name}>
+                  <div className="mb-2 flex items-baseline justify-between gap-4 text-xs">
+                    <span className={winner ? 'font-bold text-[#17211f]' : 'font-medium text-[#65706c]'}>{displayClass(name)}</span>
+                    <span className={`font-mono ${winner ? 'font-bold text-[#17211f]' : 'text-[#737c78]'}`}>{percentage}%</span>
+                  </div>
+                  <div className="h-2 bg-[#e5e4de]" aria-hidden="true">
+                    <div className="h-full transition-[width] duration-500" style={{ width: `${percentage}%`, backgroundColor: winner ? accent : '#aeb4b0' }} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Probabilities distribution */}
-      <div className="mt-6">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
-          Posterior Probability Distribution
-        </h3>
-        <div className="space-y-3">
-          {Object.entries(result.probabilities).map(([cls, prob]) => {
-            const isWinner = cls === result.predicted_class;
-            const pct = (prob * 100).toFixed(1);
-
-            return (
-              <div key={cls} className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className={`font-medium ${isWinner ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-600 dark:text-slate-400'}`}>
-                    {cls.replace('_', ' ')}
-                  </span>
-                  <span className={`font-mono text-xs ${isWinner ? 'text-indigo-600 dark:text-indigo-300 font-bold' : 'text-slate-500 dark:text-slate-400'}`}>
-                    {pct}%
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 dark:bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isWinner
-                        ? isNormal
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-sm shadow-emerald-500/50'
-                          : isHighGrade
-                          ? 'bg-gradient-to-r from-rose-500 to-red-400 shadow-sm shadow-rose-500/50'
-                          : 'bg-gradient-to-r from-amber-500 to-orange-400 shadow-sm shadow-amber-500/50'
-                        : 'bg-slate-300 dark:bg-slate-700/60'
-                    }`}
-                    style={{ width: `${pct}%` }}
-                  ></div>
-                </div>
-              </div>
-            );
-          })}
+      <dl className="grid border-t border-[#d9d8d1] bg-[#efeee8] sm:grid-cols-3">
+        <div className="border-b border-[#d9d8d1] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#7a827f]">Inference time</dt>
+          <dd className="mt-1 font-mono text-sm font-semibold text-[#26312e]">{result.inference_time_ms} ms</dd>
         </div>
-      </div>
-    </div>
+        <div className="border-b border-[#d9d8d1] px-5 py-4 sm:border-b-0 sm:border-r">
+          <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#7a827f]">Analyzed regions</dt>
+          <dd className="mt-1 font-mono text-sm font-semibold text-[#26312e]">{result.num_patches} foreground</dd>
+        </div>
+        <div className="px-5 py-4">
+          <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#7a827f]">Analysis protocol</dt>
+          <dd className="mt-1 text-sm font-semibold text-[#26312e]">{result.model_type === 'triage' ? '2-class triage' : '3-class severity grading'}</dd>
+        </div>
+      </dl>
+    </section>
   );
-};
+}

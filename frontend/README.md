@@ -24,10 +24,14 @@ Copy `.env.example` to `.env.local`:
 ```bash
 cp .env.example .env.local
 ```
-Set `NEXT_PUBLIC_API_URL` to your backend URL:
-- Local development: `http://localhost:7860`
-- Hugging Face Spaces: `https://<your-username>-paplens.hf.space`
-- Kubernetes / Self-hosted: `https://api.yourdomain.com`
+Configure backend endpoints in `.env.local`:
+```env
+# Primary backend (local development or k3s cluster over HTTPS)
+NEXT_PUBLIC_API_URL_PRIMARY=http://localhost:7860
+
+# Fallback backend (Hugging Face Spaces)
+NEXT_PUBLIC_API_URL_FALLBACK=https://sabidmahmud-paplens.hf.space
+```
 
 ### 3. Run Development Server
 ```bash
@@ -40,8 +44,11 @@ Open [http://localhost:3000](http://localhost:3000) with your browser.
 ## Testing and Building
 
 ```bash
-# Run unit tests (Vitest)
+# Run unit tests and failover resolver tests (12 tests)
 npm test
+
+# Run ESLint checks
+npm run lint
 
 # Run TypeScript checks and production build
 npm run build
@@ -49,6 +56,8 @@ npm run build
 # Start production server
 npm start
 ```
+
+For complete dual-deployment instructions and backend configuration, refer to the root [Project README](../README.md) and [Deployment Guide](../deploy/README.md).
 
 ---
 

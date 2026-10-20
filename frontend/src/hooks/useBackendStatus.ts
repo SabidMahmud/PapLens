@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { checkHealth } from '@/lib/api';
-import { HealthResponse } from '@/lib/types';
+import { checkHealth, getActiveBackendTarget } from '@/lib/api';
+import { BackendTarget, HealthResponse } from '@/lib/types';
 
 export type ServerState = 'checking' | 'online' | 'waking' | 'offline';
 
@@ -11,12 +11,14 @@ export interface UseBackendStatusReturn {
   health: HealthResponse | null;
   error: string | null;
   retryCount: number;
+  target: BackendTarget;
   checkServer: () => void;
 }
 
 export function useBackendStatus(): UseBackendStatusReturn {
   const [status, setStatus] = useState<ServerState>('checking');
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [target, setTarget] = useState<BackendTarget>(getActiveBackendTarget());
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState<number>(0);
 
@@ -42,6 +44,9 @@ export function useBackendStatus(): UseBackendStatusReturn {
         setHealth(data);
         setStatus('online');
         setRetryCount(0);
+        if (data.served_by) {
+          setTarget(data.served_by);
+        }
       } else {
         throw new Error('Models still initializing on server.');
       }
@@ -91,5 +96,5 @@ export function useBackendStatus(): UseBackendStatusReturn {
     };
   }, []);
 
-  return { status, health, error, retryCount, checkServer };
+  return { status, health, error, retryCount, target, checkServer };
 }

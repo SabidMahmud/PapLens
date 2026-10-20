@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { HeatmapViewer } from '@/components/HeatmapViewer';
 import { HowItWorks } from '@/components/HowItWorks';
@@ -12,26 +12,66 @@ import { useBackendStatus } from '@/hooks/useBackendStatus';
 import { predictImage } from '@/lib/api';
 import { ModelType, PredictionResponse } from '@/lib/types';
 
-export default function Home() {
-  const { status, retryCount, checkServer } = useBackendStatus();
+function ProcessingPanel() {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <section className="overflow-hidden border border-[#bdd4cd] bg-[#e4f0ed]">
+      <div className="flex items-start justify-between gap-5 px-5 py-4">
+        <div role="status">
+          <p className="text-sm font-semibold text-[#084f49]">Analyzing your field</p>
+          <p className="mt-1 text-xs leading-5 text-[#4f5a56]">{elapsed < 20 ? 'Your image is being processed. Keep this tab open.' : 'Still working. Server startup and larger fields can take longer.'}</p>
+        </div>
+        <span className="shrink-0 font-mono text-xs text-[#0d6b62]" aria-label={`${elapsed} seconds elapsed`}>{elapsed}s</span>
+      </div>
+      <div className="h-0.5 overflow-hidden bg-[#c9ddd6]" aria-hidden="true">
+        <div className="scan-line h-full w-1/4 bg-[#0d6b62]" />
+      </div>
+    </section>
+  );
+}
 
+export default function Home() {
+  const { status, retryCount, target: statusTarget, checkServer } = useBackendStatus();
   const [selectedModel, setSelectedModel] = useState<ModelType>('triage');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<PredictionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<{ file: File; url: string } | null>(null);
+  const requestInFlight = useRef(false);
+  const reportHeading = useRef<HTMLHeadingElement>(null);
+  const activeTarget = result?.served_by || statusTarget;
+
+  useEffect(() => () => {
+    if (selection) URL.revokeObjectURL(selection.url);
+  }, [selection]);
+
+  useEffect(() => {
+    if (result) reportHeading.current?.focus();
+  }, [result]);
+
+  const handleFileChange = (file: File) => {
+    if (requestInFlight.current) return;
+    setSelection({ file, url: URL.createObjectURL(file) });
+    setError(null);
+  };
 
   const handleAnalyze = async (file: File, modelType: ModelType) => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
     setIsLoading(true);
     setError(null);
-
     try {
-      const data = await predictImage(file, modelType);
-      setResult(data);
+      setResult(await predictImage(file, modelType));
     } catch (err: unknown) {
-      console.error('Inference error:', err);
-      const apiErr = err as { detail?: string; message?: string };
-      setError(apiErr?.detail || apiErr?.message || 'Inference failed. Please try again.');
+      const apiError = err as { detail?: string; message?: string };
+      setError(apiError?.detail || apiError?.message || 'Inference failed. Please try again.');
     } finally {
+      requestInFlight.current = false;
       setIsLoading(false);
     }
   };
@@ -39,101 +79,79 @@ export default function Home() {
   const handleReset = () => {
     setResult(null);
     setError(null);
+    setSelection(null);
+    document.getElementById('main-content')?.focus();
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   return (
-    <div className="flex-1 w-full flex flex-col items-center">
-      {/* Top Navigation / Status Header */}
-      <header className="w-full border-b border-slate-200 dark:border-slate-800/80 bg-white/70 dark:bg-slate-950/60 backdrop-blur-md sticky top-0 z-40 transition-colors">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-600/30 text-white font-black text-lg">
-              PL
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                PapLens
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                  Research Demo
-                </span>
-              </h1>
-            </div>
-          </div>
+    <div className="flex-1">
+      <header className="sticky top-0 z-50 border-b border-[#d9d8d1] bg-[#f8f7f2]/95 backdrop-blur-sm">
+        <div className="workspace-shell flex h-[68px] items-center justify-between gap-5">
+          <a href="#main-content" className="group flex items-center gap-3" aria-label="PapLens home">
+            <span className="grid h-9 w-9 place-items-center border border-[#17211f] bg-[#17211f] text-sm font-bold tracking-tight text-white transition-colors group-hover:bg-[#0d6b62]">
+              <svg aria-hidden="true" viewBox="0 0 32 32" fill="none" className="h-7 w-7" stroke="currentColor" strokeWidth="1.3"><circle cx="16" cy="16" r="10" /><ellipse cx="16" cy="16" rx="5" ry="7" transform="rotate(35 16 16)" /><circle cx="17" cy="14" r="1.5" fill="currentColor" stroke="none" /></svg>
+            </span>
+            <span>
+              <span className="font-display block text-lg leading-none text-[#17211f]">PapLens</span>
+              <span className="mt-1 hidden text-[10px] font-bold uppercase tracking-[0.16em] text-[#707a76] sm:block">Cytology evidence workspace</span>
+            </span>
+          </a>
 
-          <div className="flex items-center gap-4">
-            <ServerStatus status={status} retryCount={retryCount} onRefresh={checkServer} />
+          <div className="flex items-center gap-5">
+            <span className="hidden border-r border-[#d9d8d1] pr-5 text-xs text-[#65706c] lg:block">PapSmear-BD research prototype</span>
+            <ServerStatus status={status} retryCount={retryCount} target={activeTarget} onRefresh={checkServer} />
           </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8 flex-1">
-        {/* Hero Section */}
-        <div className="text-center max-w-3xl mx-auto space-y-3">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-            Interpretable Cervical Cytology Classification
-          </h2>
-          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-            Interpretable cervical cytology classification with attention-based multiple instance learning. Research demo.
-          </p>
+      <main id="main-content" tabIndex={-1} className="workspace-shell py-8 sm:py-10">
+        {!result && (
+          <section className="grid gap-6 border-b border-[#c7cac4] pb-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end">
+            <div>
+              <p className="quiet-label text-[#0d6b62]">Cervical cytology · Research workspace</p>
+              <h1 className="font-display mt-4 max-w-3xl text-[2.5rem] leading-[1.04] tracking-[-0.035em] text-[#17211f] sm:text-[3.5rem]">
+                Review the field.<br />See the evidence.
+              </h1>
+            </div>
+            <div className="border-l-2 border-[#0d6b62] pl-5">
+              <p className="text-sm leading-6 text-[#4f5a56]">Upload a field, choose a model, and explore its classification alongside a spatial attention map.</p>
+              <p className="mt-3 text-xs font-semibold text-[#a33d35]">Research use only · Not for diagnosis or patient care</p>
+            </div>
+          </section>
+        )}
+
+        {result && (
+          <section className="mb-8 flex flex-col justify-between gap-5 border-b border-[#c7cac4] pb-7 sm:flex-row sm:items-end">
+            <div>
+              <p className="quiet-label text-[#0d6b62]">Completed analysis</p>
+              <h1 ref={reportHeading} tabIndex={-1} className="font-display mt-3 text-4xl tracking-[-0.025em] text-[#17211f] sm:text-5xl">Evidence report</h1>
+              <p className="mt-3 break-all text-sm text-[#65706c]">{selection?.file.name} <span aria-hidden="true">·</span> {result.model_type === 'triage' ? 'Triage' : 'Severity grading'}</p>
+            </div>
+            <button type="button" onClick={handleReset} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 border border-[#aeb2ac] bg-transparent px-4 text-xs font-bold text-[#26312e] transition-colors hover:border-[#17211f] hover:bg-[#17211f] hover:text-white">
+              <span aria-hidden="true">←</span> New analysis
+            </button>
+          </section>
+        )}
+
+        {error && <div className="mt-7"><ErrorBanner message={error} onDismiss={() => setError(null)} /></div>}
+
+        <div className={result ? '' : 'mt-8'}>
+          {!result ? (
+            <div className="space-y-7">
+              {isLoading && <ProcessingPanel />}
+              <ImageUploader onAnalyze={handleAnalyze} isLoading={isLoading} selectedModel={selectedModel} onModelChange={setSelectedModel} selectedFile={selection?.file ?? null} previewUrl={selection?.url ?? null} onFileChange={handleFileChange} />
+              <SampleImages onSelectSample={handleFileChange} isLoading={isLoading} selectedFilename={selection?.file.name} />
+              <HowItWorks />
+            </div>
+          ) : (
+            <div className="space-y-8">
+              <ResultCard result={result} />
+              <HeatmapViewer result={result} />
+              <HowItWorks />
+            </div>
+          )}
         </div>
-
-        {/* Global Error Alert */}
-        {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
-
-        {/* Inference Progress Skeleton */}
-        {isLoading && (
-          <div className="w-full p-8 rounded-2xl bg-slate-100/70 dark:bg-slate-900/40 border border-indigo-500/30 backdrop-blur-md text-center space-y-4 animate-pulse">
-            <div className="inline-flex p-3 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 mb-2">
-              <svg className="animate-spin h-8 w-8" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-              </svg>
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Analyzing Slide Field-of-View...</h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto">
-              Extracting 1280px patches, filtering background glass, generating ResNet-50 embeddings, and computing Gated Attention weights.
-            </p>
-          </div>
-        )}
-
-        {/* Dynamic Display: Results vs Uploader */}
-        {!result ? (
-          <>
-            <ImageUploader
-              onAnalyze={handleAnalyze}
-              isLoading={isLoading}
-              selectedModel={selectedModel}
-              onModelChange={setSelectedModel}
-            />
-
-            <SampleImages onSelectSample={(file) => handleAnalyze(file, selectedModel)} isLoading={isLoading} />
-
-            <HowItWorks />
-          </>
-        ) : (
-          <div className="space-y-8 animate-in fade-in duration-300">
-            {/* Header actions */}
-            <div className="flex items-center justify-between pb-2">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white">Diagnostic Findings</h3>
-              <button
-                onClick={handleReset}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition-colors flex items-center gap-2 cursor-pointer"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 0118 0z" />
-                </svg>
-                <span>Analyze Another Slide</span>
-              </button>
-            </div>
-
-            <ResultCard result={result} />
-
-            <HeatmapViewer result={result} />
-
-            <HowItWorks />
-          </div>
-        )}
       </main>
     </div>
   );

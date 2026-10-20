@@ -189,8 +189,8 @@ def main():
     tolerance = 1e-5
 
     for model_type, num_classes, pipeline_folder, classes in [
-        ("triage", 2, "04_2Class_Triage", TRIAGE_CLASSES),
-        ("severity", 3, "05_3Class_Severity", SEVERITY_CLASSES),
+        ("triage", 2, "2Class_Triage", TRIAGE_CLASSES),
+        ("severity", 3, "3Class_Severity", SEVERITY_CLASSES),
     ]:
         extractor_weights = str(BACKEND_DIR / "weights" / pipeline_folder / "best_cnn_extractor.pth")
         abmil_weights = str(BACKEND_DIR / "weights" / pipeline_folder / "best_abmil_focal.pth")
