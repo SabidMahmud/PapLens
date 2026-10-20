@@ -6,16 +6,16 @@ Features:
 - Healthcheck endpoint with model-ready indicator
 - POST /predict accepting FOV slide images, returning diagnosis, probabilities, inference time, and base64 attention heatmaps.
 """
+import asyncio
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from typing import Optional
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import numpy as np
 
 from app.config import settings
 from app.heatmap import generate_attention_heatmap
+from app.inference_gate import InferenceCapacityError, InferenceGate
 from app.labels import (
     CLASS_DISPLAY_NAMES,
     SEVERITY_LEVELS,
@@ -23,8 +23,24 @@ from app.labels import (
     get_classes_for_model,
 )
 from app.model import model_manager
-from app.preprocess import extract_patches, validate_and_decode_image
+from app.preprocess import (
+    ImageDimensionsExceeded,
+    extract_patches,
+    validate_and_decode_image,
+)
 from app.schemas import ErrorResponse, HealthResponse, PredictionResponse
+
+
+UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
+inference_executor = ThreadPoolExecutor(
+    max_workers=settings.MAX_CONCURRENT_INFERENCES,
+    thread_name_prefix="paplens-inference",
+)
+inference_gate = InferenceGate(
+    max_concurrent=settings.MAX_CONCURRENT_INFERENCES,
+    max_queued=settings.MAX_QUEUED_INFERENCES,
+    queue_timeout_seconds=settings.INFERENCE_QUEUE_TIMEOUT_SECONDS,
+)
 
 
 @asynccontextmanager
@@ -97,12 +113,15 @@ async def health():
     response_model=PredictionResponse,
     responses={
         400: {"model": ErrorResponse, "description": "Invalid input image or size limit exceeded"},
+        413: {"model": ErrorResponse, "description": "Upload exceeds the configured size limit"},
         422: {"model": ErrorResponse, "description": "Validation error"},
+        503: {"model": ErrorResponse, "description": "Inference capacity is temporarily full"},
         500: {"model": ErrorResponse, "description": "Internal server inference error"},
     },
     summary="Run Cytological Inference & Attention Heatmap",
     description=(
-        "Upload a Pap smear Field-of-View (FOV) image (JPEG or PNG, up to 10MB). "
+        "Upload a Pap smear Field-of-View (FOV) image (JPEG or PNG, up to 50 MiB, "
+        "with a maximum 4000x3000 resolution in either orientation). "
         "Returns slide-level prediction, class probabilities, and a base64 attention heatmap."
     ),
 )
@@ -120,20 +139,92 @@ async def predict(
             detail=f"Unsupported file format. Please upload a JPEG or PNG image.",
         )
 
-    # 2. Read image bytes and enforce file size check
+    # 2. Stream image bytes into memory with an enforced upper bound.
+    contents = await read_upload_with_limit(file)
+
     try:
-        contents = await file.read()
+        async with inference_gate.slot():
+            return await run_prediction_off_event_loop(contents, model_type)
+    except InferenceCapacityError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+            headers={"Retry-After": "5"},
+        )
+
+
+async def run_prediction_off_event_loop(
+    contents: bytes, model_type: ModelType
+) -> PredictionResponse:
+    """Keeps the capacity slot until worker-thread inference has actually stopped."""
+    inference_future = inference_executor.submit(run_prediction, contents, model_type)
+    request_cancelled = False
+
+    while not inference_future.done():
+        try:
+            await asyncio.sleep(0.05)
+        except asyncio.CancelledError:
+            # A running Python thread cannot be forcefully stopped. Keep the capacity
+            # slot reserved until it really finishes, then propagate cancellation.
+            request_cancelled = True
+
+    if request_cancelled:
+        try:
+            inference_future.result()
+        except Exception:
+            # Retrieve a worker exception, but preserve the client cancellation.
+            pass
+        raise asyncio.CancelledError
+
+    return inference_future.result()
+
+
+async def read_upload_with_limit(file: UploadFile) -> bytes:
+    """Reads an upload incrementally and rejects it as soon as it exceeds the limit."""
+    max_bytes = int(settings.MAX_UPLOAD_MB * 1024 * 1024)
+
+    if file.size is not None and file.size > max_bytes:
+        await file.close()
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_MB} MB.",
+        )
+
+    contents = bytearray()
+    try:
+        while chunk := await file.read(UPLOAD_READ_CHUNK_BYTES):
+            if len(contents) + len(chunk) > max_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_MB} MB.",
+                )
+            contents.extend(chunk)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to read uploaded file: {str(e)}",
         )
+    finally:
+        await file.close()
+
+    return bytes(contents)
+
+
+def run_prediction(contents: bytes, model_type: ModelType) -> PredictionResponse:
+    """Runs the existing CPU-bound inference pipeline outside the event loop."""
 
     start_time = time.perf_counter()
 
     # 3. Validate image integrity and decode to RGB array
     try:
         img_array = validate_and_decode_image(contents)
+    except ImageDimensionsExceeded as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(e),
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:

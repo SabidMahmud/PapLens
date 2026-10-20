@@ -206,7 +206,7 @@ describe('API Client & Failover Resolver', () => {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
-        json: async () => ({ detail: 'File exceeds maximum upload size of 10 MB.' }),
+        json: async () => ({ detail: 'File exceeds maximum upload size of 50 MB.' }),
       });
       global.fetch = fetchMock;
 

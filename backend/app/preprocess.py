@@ -11,6 +11,11 @@ import torchvision.transforms as transforms
 
 from app.config import settings
 
+
+class ImageDimensionsExceeded(ValueError):
+    """Raised when decoded image dimensions exceed configured safety limits."""
+
+
 # ImageNet normalization transform matching research pipeline
 patch_transform = transforms.Compose([
     transforms.Resize((settings.BACKBONE_INPUT_SIZE, settings.BACKBONE_INPUT_SIZE)),
@@ -39,7 +44,7 @@ def compute_background_ratio(patch_array: np.ndarray) -> float:
     return float(white_pixels / total_pixels)
 
 
-def validate_and_decode_image(image_bytes: bytes) -> np.ndarray:
+def validate_and_decode_image(image_bytes: bytes | bytearray) -> np.ndarray:
     """
     Validates uploaded raw bytes and decodes into an RGB uint8 numpy array.
     Rejects corrupted images, unsupported formats, and oversized files.
@@ -51,29 +56,40 @@ def validate_and_decode_image(image_bytes: bytes) -> np.ndarray:
         raise ValueError(f"File exceeds maximum upload size of {settings.MAX_UPLOAD_MB} MB.")
 
     try:
-        pil_image = Image.open(io.BytesIO(image_bytes))
-        pil_image.verify()  # Verifies file integrity
+        with Image.open(io.BytesIO(image_bytes)) as image_probe:
+            image_format = (image_probe.format or "").upper()
+            if image_format not in ["JPEG", "JPG", "PNG"]:
+                raise ValueError(
+                    f"Unsupported image format: {image_format}. Only JPEG and PNG are allowed."
+                )
+
+            width, height = image_probe.size
+            long_side = max(width, height)
+            short_side = min(width, height)
+            total_pixels = width * height
+            if (
+                long_side > settings.MAX_LONG_SIDE
+                or short_side > settings.MAX_SHORT_SIDE
+                or total_pixels > settings.MAX_IMAGE_PIXELS
+            ):
+                raise ImageDimensionsExceeded(
+                    f"Image resolution {width}x{height} exceeds the maximum allowed "
+                    f"dimensions of {settings.MAX_LONG_SIDE}x{settings.MAX_SHORT_SIDE} "
+                    f"(landscape or portrait) and {settings.MAX_IMAGE_PIXELS:,} total pixels."
+                )
+
+            image_probe.verify()
+    except ValueError:
+        raise
     except Exception as e:
         raise ValueError(f"Invalid or corrupted image file: {str(e)}")
 
-    # Re-open after verify() (Pillow requirement)
-    pil_image = Image.open(io.BytesIO(image_bytes))
-    image_format = (pil_image.format or "").upper()
-    if image_format not in ["JPEG", "JPG", "PNG"]:
-        raise ValueError(f"Unsupported image format: {image_format}. Only JPEG and PNG are allowed.")
-
-    width, height = pil_image.size
-    total_pixels = width * height
-    if total_pixels > settings.MAX_IMAGE_PIXELS:
-        raise ValueError(
-            f"Image resolution ({width}x{height} = {total_pixels:,} pixels) exceeds the safe limit of "
-            f"{settings.MAX_IMAGE_PIXELS:,} pixels."
-        )
-
-    # Convert to RGB (handles RGBA, Palette, Grayscale)
-    pil_image = pil_image.convert("RGB")
-    img_array = np.array(pil_image)
-    return img_array
+    # Re-open after verify() (Pillow requirement), then decode to RGB.
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as pil_image:
+            return np.array(pil_image.convert("RGB"))
+    except Exception as e:
+        raise ValueError(f"Invalid or corrupted image file: {str(e)}")
 
 
 def extract_patches(

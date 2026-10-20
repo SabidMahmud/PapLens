@@ -43,7 +43,13 @@ The backend is configured via environment variables (with robust defaults):
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated list of allowed CORS origins. Never use `*` in production. |
-| `MAX_UPLOAD_MB` | `10` | Maximum allowable image upload size in megabytes. |
+| `MAX_UPLOAD_MB` | `50` | Maximum image file size in MiB; uploads are read in bounded chunks. |
+| `MAX_LONG_SIDE` | `4000` | Maximum pixels on the image's longest side. |
+| `MAX_SHORT_SIDE` | `3000` | Maximum pixels on the image's shortest side. |
+| `MAX_IMAGE_PIXELS` | `12000000` | Maximum decoded image area. |
+| `MAX_CONCURRENT_INFERENCES` | `1` | Maximum active inference pipelines per server process. |
+| `MAX_QUEUED_INFERENCES` | `2` | Maximum requests waiting for an inference slot. |
+| `INFERENCE_QUEUE_TIMEOUT_SECONDS` | `30` | Maximum time a queued request waits for a slot. |
 | `PORT` | `7860` | Server listen port. |
 | `WEIGHTS_DIR` | `./weights` | Directory containing local model weights. |
 | `HF_REPO_ID` | `""` | Optional Hugging Face Hub repo ID for hybrid fallback weight downloading. |

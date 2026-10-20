@@ -2,7 +2,7 @@
  * Client-side file and format validation.
  */
 
-export const MAX_UPLOAD_MB = 10;
+export const MAX_UPLOAD_MB = 50;
 export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 export const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 export const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png'];

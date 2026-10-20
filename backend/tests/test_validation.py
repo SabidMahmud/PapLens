@@ -29,7 +29,7 @@ def test_reject_oversized_file(client, monkeypatch):
         "/predict",
         files={"file": ("large.jpg", big_payload, "image/jpeg")},
     )
-    assert response.status_code == 400
+    assert response.status_code == 413
     assert "exceeds maximum upload size" in response.json()["detail"]
 
 
