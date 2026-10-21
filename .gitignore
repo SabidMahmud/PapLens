@@ -33,7 +33,6 @@ htmlcov/
 backend/weights/**
 !backend/weights/**/
 !backend/weights/**/.gitkeep
-trained_models/
 
 # Node.js & Next.js
 node_modules/
@@ -60,3 +59,4 @@ Thumbs.db
 # Scratch & temporary artifacts
 scratch/
 tmp/
+trained_models/
