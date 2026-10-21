@@ -36,31 +36,31 @@ export function SelectedImagePanel({
             className="absolute inset-0 h-full w-full object-contain"
           />
         )}
-        <span className="absolute bottom-3 left-3 bg-canvas/85 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-white">
+        <span className="absolute bottom-3 left-3 bg-[#111715]/85 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-white">
           Input field
         </span>
       </div>
 
-      <div className="flex min-w-0 flex-col justify-between border-y border-line py-5">
+      <div className="flex min-w-0 flex-col justify-between border-y border-[#d9d8d1] py-5">
         <div>
-          <p className="quiet-label text-brand">
+          <p className="quiet-label text-[#0d6b62]">
             {isLoading ? 'Analysis in progress' : 'Ready to analyze'}
           </p>
-          <h3 title={file.name} className="mt-4 break-words text-lg font-bold text-ink">
+          <h3 title={file.name} className="mt-4 break-words text-lg font-bold text-[#17211f]">
             {file.name}
           </h3>
           <dl className="mt-5 grid grid-cols-2 gap-x-5 gap-y-4 text-xs">
             <div>
-              <dt className="text-ink-faint">File size</dt>
-              <dd className="mt-1 font-semibold text-ink-strong">{formatFileSize(file.size)}</dd>
+              <dt className="text-[#7a827f]">File size</dt>
+              <dd className="mt-1 font-semibold text-[#26312e]">{formatFileSize(file.size)}</dd>
             </div>
             <div>
-              <dt className="text-ink-faint">Format</dt>
-              <dd className="mt-1 font-semibold uppercase text-ink-strong">{getFileFormat(file)}</dd>
+              <dt className="text-[#7a827f]">Format</dt>
+              <dd className="mt-1 font-semibold uppercase text-[#26312e]">{getFileFormat(file)}</dd>
             </div>
             <div className="col-span-2">
-              <dt className="text-ink-faint">Protocol</dt>
-              <dd className="mt-1 font-semibold text-ink-strong">
+              <dt className="text-[#7a827f]">Protocol</dt>
+              <dd className="mt-1 font-semibold text-[#26312e]">
                 {getModelProtocol(selectedModel).fullLabel}
               </dd>
             </div>
@@ -72,14 +72,14 @@ export function SelectedImagePanel({
             type="button"
             disabled={isLoading}
             onClick={() => fileInputRef.current?.click()}
-            className="min-h-11 border border-line-control px-4 text-xs font-bold text-[#4e5855] transition-colors hover:border-ink hover:text-ink disabled:opacity-50"
+            className="min-h-11 border border-[#aeb2ac] px-4 text-xs font-bold text-[#4e5855] transition-colors hover:border-[#17211f] hover:text-[#17211f] disabled:opacity-50"
           >
             Replace image
           </button>
           <button
             type="submit"
             disabled={isLoading}
-            className="min-h-11 flex-1 bg-brand px-5 text-xs font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
+            className="min-h-11 flex-1 bg-[#0d6b62] px-5 text-xs font-bold text-white transition-colors hover:bg-[#084f49] disabled:opacity-60"
           >
             {isLoading ? 'Analyzing…' : 'Run analysis →'}
           </button>

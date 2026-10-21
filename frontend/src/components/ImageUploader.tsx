@@ -41,14 +41,14 @@ export function ImageUploader(props: ImageUploaderProps) {
   return (
     <section
       id="upload-field"
-      className="border border-line-panel bg-paper-strong"
+      className="border border-[#c7cac4] bg-[#fbfaf7]"
       aria-labelledby="new-analysis-title"
       aria-busy={props.isLoading}
     >
-      <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-7">
+      <div className="flex items-center justify-between border-b border-[#d9d8d1] px-5 py-4 sm:px-7">
         <div className="flex items-center gap-3">
-          <span className="font-mono text-xs text-brand">01</span>
-          <h2 id="new-analysis-title" className="text-sm font-bold text-ink">
+          <span className="font-mono text-xs text-[#0d6b62]">01</span>
+          <h2 id="new-analysis-title" className="text-sm font-bold text-[#17211f]">
             New field analysis
           </h2>
         </div>
@@ -94,7 +94,7 @@ export function ImageUploader(props: ImageUploaderProps) {
           )}
 
           {clientError && (
-            <p role="alert" className="mt-3 border-l-2 border-danger bg-danger-soft px-3 py-2 text-xs leading-5 text-[#84332d]">
+            <p role="alert" className="mt-3 border-l-2 border-[#a33d35] bg-[#f8e9e6] px-3 py-2 text-xs leading-5 text-[#84332d]">
               {clientError}
             </p>
           )}

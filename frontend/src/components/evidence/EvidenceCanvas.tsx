@@ -27,7 +27,7 @@ export function EvidenceCanvas(props: EvidenceCanvasProps) {
       }];
 
   return (
-    <div className="bg-canvas text-[#edf1ef]">
+    <div className="bg-[#111715] text-[#edf1ef]">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-white/10 px-4 py-2 sm:px-6">
         <div className="flex min-h-11 items-center gap-3 text-xs">
           <span role="status">
@@ -71,7 +71,7 @@ export function EvidenceCanvas(props: EvidenceCanvasProps) {
 
       <div className={props.viewMode === 'compare' ? 'grid gap-px bg-white/10 md:grid-cols-2' : ''}>
         {panels.map((panel) => (
-          <figure key={String(panel.withHeatmap)} className="min-w-0 bg-canvas">
+          <figure key={String(panel.withHeatmap)} className="min-w-0 bg-[#111715]">
             {props.viewMode === 'compare' && (
               <figcaption className="border-b border-white/10 px-5 py-3 text-xs text-white/70">
                 {panel.withHeatmap ? 'Attention overlay' : 'Original field'}
