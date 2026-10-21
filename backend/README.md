@@ -22,17 +22,41 @@ Designed for containerized CPU deployment on **Hugging Face Spaces** (Docker SDK
 ## Quickstart: Local Docker Run
 
 ```bash
-# 1. Build Docker image (~669 MB)
+# 1. Create and configure the runtime environment
+cp .env.example .env
+
+# 2. Build Docker image (~669 MB)
 docker build -t paplens-backend .
 
-# 2. Run container
-docker run -p 7860:7860 paplens-backend
+# 3. Run container without baking secrets into the image
+docker run --env-file .env -p 7860:7860 paplens-backend
 ```
 
 Verify health:
 ```bash
 curl http://localhost:7860/health
 ```
+
+## Local Environment
+
+Create the backend environment file before starting Uvicorn:
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+Set the Hugging Face model repository in `.env`:
+
+```dotenv
+HF_REPO_ID=your-huggingface-username/paplens-weights
+HF_TOKEN=
+```
+
+Leave `HF_TOKEN` blank for a public model repository. For a private repository,
+use a read-only Hugging Face token. The backend loads `backend/.env` regardless
+of the directory from which the application is launched. Real `.env` files are
+excluded from Git.
 
 ---
 
