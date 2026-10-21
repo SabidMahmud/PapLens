@@ -33,11 +33,23 @@ NEXT_PUBLIC_API_URL_PRIMARY=http://localhost:7860
 NEXT_PUBLIC_API_URL_FALLBACK=https://sabidmahmud-paplens.hf.space
 ```
 
+When opening the development frontend from another device on the local network,
+set the Raspberry Pi address as both the backend host and an allowed Next.js
+development origin:
+
+```env
+NEXT_PUBLIC_API_URL_PRIMARY=http://10.100.0.110:7860
+NEXT_ALLOWED_DEV_ORIGINS=10.100.0.110
+```
+
+Use the actual Raspberry Pi IP address or hostname. The backend must also include
+the frontend origin, such as `http://10.100.0.110:3000`, in `ALLOWED_ORIGINS`.
+
 ### 3. Run Development Server
 ```bash
-npm run dev
+npm run dev -- --hostname 0.0.0.0
 ```
-Open [http://localhost:3000](http://localhost:3000) with your browser.
+Open `http://<raspberry-pi-ip>:3000` from another device on the network.
 
 ---
 
