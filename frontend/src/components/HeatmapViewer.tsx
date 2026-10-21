@@ -15,7 +15,7 @@ export function HeatmapViewer({ result }: HeatmapViewerProps) {
   const evidence = useEvidenceMap(result);
 
   return (
-    <section className="border border-line-panel bg-paper-strong" aria-labelledby="evidence-map-title">
+    <section className="border border-[#c7cac4] bg-[#fbfaf7]" aria-labelledby="evidence-map-title">
       <EvidenceHeader
         viewMode={evidence.viewMode}
         exporting={evidence.exporting}
@@ -37,7 +37,7 @@ export function HeatmapViewer({ result }: HeatmapViewerProps) {
       />
 
       {evidence.exportError && (
-        <p role="alert" className="border-b border-line bg-danger-soft px-5 py-3 text-sm text-danger">
+        <p role="alert" className="border-b border-[#d9d8d1] bg-[#f8e9e6] px-5 py-3 text-sm text-[#a33d35]">
           {evidence.exportError}
         </p>
       )}

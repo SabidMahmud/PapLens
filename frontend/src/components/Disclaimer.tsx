@@ -2,7 +2,7 @@ import { RESEARCH_DEMO_LABEL, RESEARCH_DEMO_NOTICE } from '@/config/disclaimer';
 
 export function Disclaimer() {
   return (
-    <footer className="mt-auto bg-ink text-white">
+    <footer className="mt-auto bg-[#17211f] text-white">
       <div className="workspace-shell flex flex-col justify-between gap-5 py-7 sm:flex-row sm:items-center">
         <div className="flex items-start gap-3">
           <span className="mt-1 h-2 w-2 shrink-0 bg-[#e1a94f]" aria-hidden="true" />

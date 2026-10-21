@@ -44,7 +44,7 @@ export function getStatusPresentation(
       label: 'Connecting',
       detail: `Attempt ${retryCount}/${BACKEND_STATUS_CONFIG.maxRetries}`,
     },
-    offline: { dot: 'bg-danger', label: 'System offline', detail: '' },
+    offline: { dot: 'bg-[#a33d35]', label: 'System offline', detail: '' },
   };
   return presentations[status];
 }
