@@ -1,10 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  BACKEND_STATUS_CONFIG,
+  getRetryDelay,
+  ServerState,
+} from '@/config/backendStatus';
 import { checkHealth, getActiveBackendTarget } from '@/lib/api';
-import { BackendTarget, HealthResponse } from '@/lib/types';
+import { BackendTarget, HealthResponse } from '@/domain/backend';
 
-export type ServerState = 'checking' | 'online' | 'waking' | 'offline';
+export type { ServerState } from '@/config/backendStatus';
 
 export interface UseBackendStatusReturn {
   status: ServerState;
@@ -22,7 +27,8 @@ export function useBackendStatus(): UseBackendStatusReturn {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState<number>(0);
 
-  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef<boolean>(true);
 
   const performCheckRef = useRef<(retry: number) => Promise<void>>(async () => {});
@@ -32,8 +38,13 @@ export function useBackendStatus(): UseBackendStatusReturn {
     setStatus(currentRetry === 0 ? 'checking' : 'waking');
     setError(null);
 
+    activeControllerRef.current?.abort();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    activeControllerRef.current = controller;
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      BACKEND_STATUS_CONFIG.checkTimeoutMs
+    );
 
     try {
       const data = await checkHealth(controller.signal);
@@ -57,19 +68,14 @@ export function useBackendStatus(): UseBackendStatusReturn {
       const nextRetry = currentRetry + 1;
       setRetryCount(nextRetry);
 
-      if (nextRetry <= 5) {
+      if (nextRetry <= BACKEND_STATUS_CONFIG.maxRetries) {
         setStatus('waking');
-        // Exponential backoff: 3s, 5s, 8s, 12s, 15s
-        const backoffMs = Math.min(3000 * Math.pow(1.4, nextRetry - 1), 15000);
         retryTimerRef.current = setTimeout(() => {
           performCheckRef.current(nextRetry);
-        }, backoffMs);
+        }, getRetryDelay(nextRetry));
       } else {
         setStatus('offline');
-        setError(
-          'Model server appears to be unreachable. If running locally, please start the backend container. ' +
-          'If on Hugging Face Spaces, it may take an additional moment to complete container startup.'
-        );
+        setError(BACKEND_STATUS_CONFIG.offlineMessage);
       }
     }
   }, []);
@@ -93,6 +99,7 @@ export function useBackendStatus(): UseBackendStatusReturn {
       isMountedRef.current = false;
       clearTimeout(initialTimer);
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      activeControllerRef.current?.abort();
     };
   }, []);
 

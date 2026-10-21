@@ -3,10 +3,17 @@
 :root {
   --paper: #f4f2ec;
   --paper-strong: #fbfaf7;
+  --paper-muted: #efeee8;
   --ink: #17211f;
+  --ink-strong: #26312e;
+  --ink-body: #4f5a56;
+  --ink-secondary: #5f6965;
   --ink-muted: #65706c;
+  --ink-faint: #7a827f;
   --line: #d9d8d1;
   --line-strong: #bbbdb7;
+  --line-panel: #c7cac4;
+  --line-control: #aeb2ac;
   --teal: #0d6b62;
   --teal-dark: #084f49;
   --teal-soft: #e4f0ed;
@@ -16,6 +23,27 @@
   --canvas: #111715;
   --font-ui: Arial, Helvetica, sans-serif;
   --font-display: Georgia, "Times New Roman", serif;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-strong: var(--paper-strong);
+  --color-paper-muted: var(--paper-muted);
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-ink-body: var(--ink-body);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-panel: var(--line-panel);
+  --color-line-control: var(--line-control);
+  --color-brand: var(--teal);
+  --color-brand-dark: var(--teal-dark);
+  --color-brand-soft: var(--teal-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-canvas: var(--canvas);
 }
 
 * { box-sizing: border-box; }

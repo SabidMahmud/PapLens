@@ -270,7 +270,7 @@ paplens/
 │   │   └── samples/              # Directory for static sample images (.gitkeep)
 │   ├── package.json              # Next.js 16, React 19, Tailwind CSS v4, Vitest
 │   ├── tsconfig.json             # TypeScript compiler settings
-│   ├── vitest.config.ts          # Vitest testing configuration
+│   ├── vitest.config.mts         # Vitest testing configuration
 │   └── README.md                 # Frontend documentation -> frontend/README.md
 ├── deploy/                       # Kubernetes, GitOps, and Ingress manifests -> see deploy/README.md
 │   ├── k8s/
